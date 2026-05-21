@@ -105,11 +105,20 @@ async function buildFontFromFiles(ocr, meta, pngUrl) {
   const glyphData = new Uint8ClampedArray(W * pxheight * 4);
   glyphData.set(raw.data.subarray(0, W * pxheight * 4));
 
+  // Font PNG encodes glyph data in RGB (not alpha). Copy R→alpha so unblendTrans works.
+  const rgbFixed = new Uint8ClampedArray(W * pxheight * 4);
+  for (let i = 0; i < W * pxheight * 4; i += 4) {
+    rgbFixed[i + 0] = glyphData[i + 0];
+    rgbFixed[i + 1] = glyphData[i + 1];
+    rgbFixed[i + 2] = glyphData[i + 2];
+    rgbFixed[i + 3] = glyphData[i + 0]; // alpha = R channel (luminance)
+  }
+
   let inimg;
   try {
-    inimg = new window.A1lib.ImageData(W, pxheight, glyphData);
+    inimg = new window.A1lib.ImageData(rgbFixed, W, pxheight);
   } catch (e) {
-    inimg = { width: W, height: pxheight, data: glyphData };
+    inimg = { width: W, height: pxheight, data: rgbFixed };
   }
 
   const color =
@@ -140,9 +149,9 @@ async function buildFontFromFiles(ocr, meta, pngUrl) {
   let unblended;
   try {
     unblended = new window.A1lib.ImageData(
+      unblendedData,
       W,
-      pxheight + 1,
-      unblendedData
+      pxheight + 1
     );
   } catch (e) {
     unblended = { width: W, height: pxheight + 1, data: unblendedData };
@@ -510,26 +519,25 @@ async function readExamineWindow() {
       }
     }
 
-    const scaled = scaleCanvas(imgDataToCanvas(cD), 4);
-    const ctx = scaled.getContext("2d");
-    const px = ctx.getImageData(0, 0, scaled.width, scaled.height);
-
-    let avg = 0;
-    for (let i = 0; i < px.data.length; i += 4) {
-            avg += (px.data[i] + px.data[i + 1] + px.data[i + 2]) / 3;
+    // --- Remap examine strip: dark text (~85) on light bg (~194) → white text on black ---
+    const remapped = new Uint8ClampedArray(cW * SH * 4);
+    for (let i = 0; i < cW * SH; i++) {
+      const r = cD.data[i * 4 + 0];
+      const g = cD.data[i * 4 + 1];
+      const b = cD.data[i * 4 + 2];
+      const br = (r + g + b) / 3;
+      const col = br < 128 ? 255 : 0; // dark text → white, light bg → black
+      remapped[i * 4 + 0] = col;
+      remapped[i * 4 + 1] = col;
+      remapped[i * 4 + 2] = col;
+      remapped[i * 4 + 3] = 255;
     }
-    avg /= px.data.length / 4;
 
-    if (avg < 128) {
-      const inv = ctx.createImageData(scaled.width, scaled.height);
-      for (let i = 0; i < px.data.length; i += 4) {
-        inv.data[i] = 255 - px.data[i];
-        inv.data[i + 1] = 255 - px.data[i + 1];
-        inv.data[i + 2] = 255 - px.data[i + 2];
-        inv.data[i + 3] = 255;
-      }
-      ctx.putImageData(inv, 0, 0);
-    }
+    const remappedData = { width: cW, height: SH, data: remapped };
+    const unscaledCanvas = imgDataToCanvas(remappedData);
+
+    // Scaled canvas for debug preview only
+    const scaled = scaleCanvas(unscaledCanvas, 4);
 
     const oc = getOrCreateOcrCanvas();
     oc.width = scaled.width;
@@ -548,43 +556,50 @@ async function readExamineWindow() {
       return;
     }
 
-    const font = await loadFont();
-    if (!font) {
+    // Build font candidate list
+    const fontCandidates = [];
+
+    if (window.A1lib) {
+      try {
+        const meta = await fetch("./fonts/rightclick.fontmeta.json").then(r => r.json());
+        const fontDef = await buildFontFromFiles(ocr, meta, "./fonts/rightclick.data.png");
+        if (fontDef) fontCandidates.push({ def: fontDef, label: "rightclick" });
+      } catch (e) {
+        dbg("rightclick font skipped: " + e.message);
+      }
+    }
+
+    for (const name of ["OCR_aa_8px_mono", "OCR_aa_10px_mono", "OCR_aa_12px_mono"]) {
+      if (typeof window[name] !== "undefined") {
+        fontCandidates.push({ def: window[name], label: name });
+      }
+    }
+
+    if (!fontCandidates.length) {
       setStatus("err", "OCR font not available");
       return;
     }
 
-    const ocrImgData = ctx.getImageData(0, 0, scaled.width, scaled.height);
-    const a1Img = new window.A1lib.ImageData(
-      scaled.width,
-      scaled.height,
-      ocrImgData.data
-    );
+    const a1Img = new window.A1lib.ImageData(remapped, cW, SH);
 
-    const textColor = [255, 255, 255];
+    let tesseractRaw = "";
 
-    let result;
-    try {
-      const scale = 4;
-      const baseY = Math.round((font.basey || 11) * scale);
-      const safeY = Math.max(0, Math.min(baseY, a1Img.height - 1));
-      dbg(
-        `OCR: img ${a1Img.width}x${a1Img.height}, font basey=${font.basey} height=${font.height}, scanning y=${safeY}`
-      );
-      result = ocr.findReadLine(
-        a1Img,
-        font,
-        [textColor],
-        Math.floor(a1Img.width / 2),
-        safeY
-      );
-    } catch (e) {
-      dbg("OCR error: " + e.message);
-      setStatus("err", "OCR error: " + e.message.slice(0, 60));
-      return;
+    for (const candidate of fontCandidates) {
+      try {
+        const font = candidate.def;
+        dbg(`OCR attempt [${candidate.label}]: img ${a1Img.width}x${a1Img.height}`);
+        const result = ocr.readLine(a1Img, font, [255, 255, 255], 0, 13, true);
+        const text = (result?.text || "").trim();
+        dbg(`OCR [${candidate.label}] raw: "${text}"`);
+        if (text.length >= 2) {
+          tesseractRaw = text;
+          dbg(`✅ Font [${candidate.label}] produced text`);
+          break;
+        }
+      } catch (e) {
+        dbg(`OCR [${candidate.label}] error: ` + e.message);
+      }
     }
-
-    const tesseractRaw = (result?.text || "").trim();
     dbg('OCR raw: "' + tesseractRaw + '"');
 
     const stripped = stripLevelSuffix(tesseractRaw);
@@ -735,6 +750,11 @@ export function initAlt1Integration() {
   a1script.src = "./menuTracking/alt1base.bundle.js";
 
   a1script.onload = function () {
+    // Load OCR bundle AFTER alt1base so A1lib classes (Rect etc) exist first
+    const ocrScript = document.createElement("script");
+    ocrScript.src = "./menuTracking/alt1ocr.bundle.js";
+    ocrScript.onload = () => dbg("alt1ocr bundle loaded — window.OCR: " + (typeof window.OCR));
+    document.head.appendChild(ocrScript);
     let attempts = 0;
     function tryA1lib() {
       const a1lib = window.A1lib;

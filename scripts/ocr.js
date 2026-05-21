@@ -468,7 +468,7 @@ async function readExamineWindow() {
     let clipCol = SW;
     for (let gi = gaps.length - 1; gi >= 0; gi--) {
       const g = gaps[gi];
-      if (g.end - g.start + 1 < 2) continue;
+      if (g.end - g.start + 1 < 10) continue; // skip word-space gaps, only clip large gaps (border/noise)
 
       let hL = false;
       let hR = false;

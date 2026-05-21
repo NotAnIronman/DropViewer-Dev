@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Drop Viewer</title>
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+  <div id="titlebar">
+    <img id="npc-img" alt="NPC" />
+    <span class="logo" id="titlebar-logo">📜</span>
+
+    <div class="titles">
+      <h1>Drop Viewer</h1>
+      <div class="subtitle" id="subtitle">Search any NPC</div>
+    </div>
+
+    <button id="settings-btn" title="Settings">⚙</button>
+    <button id="close">✕</button>
+  </div>
+
+  <div id="settings-panel">
+    <h3>Settings</h3>
+
+    <div class="settings-row">
+      <label>Show debug log</label>
+      <div class="toggle" id="toggle-debug"></div>
+    </div>
+
+    <div class="settings-row">
+      <label>Show OCR preview</label>
+      <div class="toggle" id="toggle-ocr-canvas"></div>
+    </div>
+
+    <div class="settings-row settings-row--stack">
+      <label>Window opacity <span id="opacity-value">100%</span></label>
+      <input type="range" id="opacity-slider" min="30" max="100" step="5" value="100" />
+    </div>
+  </div>
+
+  <div id="mode-tabs">
+    <div class="mode-tab active" data-mode="npc">👾 NPC Drops</div>
+    <div class="mode-tab" data-mode="item">🎒 Item Sources</div>
+  </div>
+
+  <div id="searchbar">
+    <input id="search-input" type="text" placeholder="Search NPCs..." autocomplete="off" />
+    <button id="search-btn">Search</button>
+  </div>
+
+  <div id="status"></div>
+  <button id="back-btn">← Back</button>
+
+  <div id="content">
+
+    <div id="npc-browser">
+      <div id="npc-list-header">
+        <span id="list-label">Loading monster list from wiki...</span>
+        <span id="list-count"></span>
+      </div>
+
+      <div id="list-status"></div>
+      <div id="npc-list"></div>
+    </div>
+
+    <div id="disambig">
+      <h3>⚠️ Disambiguation</h3>
+      <p id="disambig-msg"></p>
+      <div id="disambig-options"></div>
+    </div>
+
+    <div id="drops"></div>
+  </div>
+
+  <!-- Single entry point for the entire app -->
+  <script type="module" src="core.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "appname": "Drop Viewer - Developer",
+  "description": "Lets you quickly pull up the drop table of NPCs",
+  "appurl": "./drops.html",
+  "iconUrl": "./drops.png",
+  "defaultWidth": 480,
+  "defaultHeight": 620,
+  "minWidth": 283,
+  "minHeight": 283,
+  "maxWidth": 800,
+  "maxHeight": 900,
+  "requestHandlers": [],
+  "activators": ["regex:Examine .+"],
+  "permissions": "pixel,gamestate,overlay"
+}

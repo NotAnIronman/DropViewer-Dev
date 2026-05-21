@@ -519,14 +519,22 @@ async function readExamineWindow() {
       }
     }
 
-    // --- Remap examine strip: dark text (~85) on light bg (~194) → white text on black ---
+    // Determine whether text is dark-on-light or light-on-dark and threshold accordingly
+    let brightSum = 0;
+    for (let i = 0; i < cW * SH; i++) {
+      brightSum += (cD.data[i*4] + cD.data[i*4+1] + cD.data[i*4+2]) / 3;
+    }
+    const avgBright = brightSum / (cW * SH);
+    // If avg > 128: light background, dark text → dark pixels become white (text)
+    // If avg < 128: dark background, light text → light pixels become white (text)
     const remapped = new Uint8ClampedArray(cW * SH * 4);
     for (let i = 0; i < cW * SH; i++) {
       const r = cD.data[i * 4 + 0];
       const g = cD.data[i * 4 + 1];
       const b = cD.data[i * 4 + 2];
       const br = (r + g + b) / 3;
-      const col = br < 128 ? 255 : 0; // dark text → white, light bg → black
+      const isText = avgBright > 128 ? br < avgBright - 40 : br > avgBright + 40;
+      const col = isText ? 255 : 0;
       remapped[i * 4 + 0] = col;
       remapped[i * 4 + 1] = col;
       remapped[i * 4 + 2] = col;

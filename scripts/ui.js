@@ -531,8 +531,6 @@ export function initUIEvents() {
 
     if (currentMode === "npc") renderNpcList("");
     else {
-      document.getElementById("npc-list").innerHTML =
-        '<div id="npc-empty">Type an item name and press Search
         document.getElementById("npc-list").innerHTML =
         '<div id="npc-empty">Type an item name and press Search.<br><small>e.g. "Dragon bones", "Abyssal whip"</small></div>';
     }

@@ -593,7 +593,7 @@ async function readExamineWindow() {
     for (const candidate of fontCandidates) {
       try {
         const font = candidate.def;
-        dbg(`OCR attempt [${candidate.label}]: img ${a1Img.width}x${a1Img.height}`);
+        dbg(`OCR attempt [${candidate.label}]: img ${a1Img.width}x${a1Img.height}, maxspaces=${candidate.def.maxspaces}`);
         const result = ocr.readLine(a1Img, font, [255, 255, 255], 0, 13, true);
         const text = (result?.text || "").trim();
         dbg(`OCR [${candidate.label}] raw: "${text}"`);
@@ -744,6 +744,7 @@ export function initAlt1Integration() {
   document.body.appendChild(badge);
   _alt1Badge = badge;
 
+  dbg("DropViewer ocr.js v1.1 — maxspaces=5, adaptive threshold");
   dbg("alt1 v" + window.alt1.version);
   try {
     window.alt1.identifyAppUrl("./appconfig.json");

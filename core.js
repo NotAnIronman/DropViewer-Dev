@@ -3,7 +3,7 @@
 // CORE APPLICATION LOGIC — State, Lookup Pipelines, Disambiguation, Init
 // ============================================================================
 
-import { dbg, setStatus, applyToggleUI } from "./scripts/settings.js";
+import { dbg, setStatus, applyToggleUI, initSettingsUI } from "./scripts/settings.js";
 import {
   fetchNpcDropsBucket,
   fetchItemSourcesBucket,
@@ -458,6 +458,7 @@ export function initApp() {
   dbg("Initializing DropViewer...");
 
   applyToggleUI();
+  initSettingsUI();
   showBrowser();
 
   // Load monster list

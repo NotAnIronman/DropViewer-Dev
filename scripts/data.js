@@ -117,16 +117,6 @@ export async function fetchDropStructure(pageName) {
   }
 
   const children = Array.from(content.children);
-
-  // DIAGNOSTIC: log first 30 children to see exact structure
-  dbg(`STRUCTURE: content has ${children.length} children`);
-  children.slice(0, 30).forEach((el, i) => {
-    const tag = el.tagName;
-    const cls = el.className?.slice(0, 50) || "";
-    const txt = el.textContent?.slice(0, 60).replace(/\n/g, " ").trim() || "";
-    const id  = el.querySelector?.("[id]")?.id || "";
-    dbg(`  [${i}] <${tag}> class="${cls}" id="${id}" text="${txt}"`);
-  });
   // Wiki uses: id="Drops", id="Drops_(normal_mode)", id="Drops_(hard_mode)" etc.
   let startIdx = -1;
   for (let i = 0; i < children.length; i++) {
@@ -201,30 +191,23 @@ export async function fetchDropStructure(pageName) {
       continue;
     }
 
-    // Table — count item rows under the current category
+    // Table — extract item names from rows under the current category
     if (el.tagName === "TABLE" && currentCategory) {
-      // Count <tr> rows that have at least one <td> (skip header rows with only <th>)
-      const trs   = el.querySelectorAll("tbody tr");
-      let   count = 0;
-      trs.forEach(tr => { if (tr.querySelector("td")) count++; });
-
-      if (count > 0) {
-        sections.push({ mode: currentMode, category: currentCategory, count });
-        dbg(`STRUCTURE: [${currentMode}] "${currentCategory}" = ${count} rows`);
+      const names = extractItemNamesFromTable(el);
+      if (names.length > 0) {
+        sections.push({ mode: currentMode, category: currentCategory, names });
+        dbg(`STRUCTURE: [${currentMode}] "${currentCategory}" = ${names.length} items: ${names.slice(0,3).join(", ")}`);
       }
       continue;
     }
 
     // A div that directly contains a table (wiki sometimes wraps tables)
     if (el.tagName === "DIV" && currentCategory) {
-      const tables = el.querySelectorAll("table");
-      tables.forEach(tbl => {
-        const trs   = tbl.querySelectorAll("tbody tr");
-        let   count = 0;
-        trs.forEach(tr => { if (tr.querySelector("td")) count++; });
-        if (count > 0) {
-          sections.push({ mode: currentMode, category: currentCategory, count });
-          dbg(`STRUCTURE: [${currentMode}] "${currentCategory}" = ${count} rows (wrapped)`);
+      el.querySelectorAll("table").forEach(tbl => {
+        const names = extractItemNamesFromTable(tbl);
+        if (names.length > 0) {
+          sections.push({ mode: currentMode, category: currentCategory, names });
+          dbg(`STRUCTURE: [${currentMode}] "${currentCategory}" = ${names.length} items (wrapped)`);
         }
       });
     }
@@ -242,7 +225,20 @@ export async function fetchDropStructure(pageName) {
   return sections;
 }
 
-function normaliseSectionName(raw) {
+function extractItemNamesFromTable(tbl) {
+  const names = [];
+  tbl.querySelectorAll("tbody tr").forEach(tr => {
+    if (!tr.querySelector("td")) return; // skip header rows
+    // Item name is in the <td class="item-col"> or the second <td>
+    // The <a> inside has title="Item name" which is the canonical name
+    const itemCell = tr.querySelector("td.item-col") || tr.querySelectorAll("td")[1];
+    if (!itemCell) return;
+    const link = itemCell.querySelector("a");
+    const name = (link?.title || link?.textContent || itemCell.textContent).trim();
+    if (name) names.push(name);
+  });
+  return names;
+}
   const s = raw.toLowerCase().trim();
   if (/^100%$|^always$/i.test(s))            return "100%";
   if (/^unique/i.test(s))                    return "Unique";
@@ -308,19 +304,43 @@ export async function fetchNpcDropsBucket(pageName) {
     };
   });
 
-  // If we got wiki structure, use it to assign categories positionally
+  // If we got wiki structure, build a name→{mode,category} lookup map
   if (structure && structure.length) {
-    let idx = 0;
+    // Build map: item name → { mode, category }
+    // If the same item appears in multiple sections (e.g. both normal+hard mode),
+    // we keep all entries and match bucket rows in order
+    const nameMap = new Map(); // name → [{mode, category}]
     for (const section of structure) {
-      const end = idx + section.count;
-      for (let i = idx; i < end && i < drops.length; i++) {
-        drops[i].mode     = section.mode;
-        drops[i].category = section.category;
-        drops[i].section  = section.category;
+      for (const name of section.names) {
+        const key = name.toLowerCase();
+        if (!nameMap.has(key)) nameMap.set(key, []);
+        nameMap.get(key).push({ mode: section.mode, category: section.category });
       }
-      idx = end;
     }
-    dbg(`STRUCTURE: assigned categories to ${Math.min(idx, drops.length)} drops`);
+
+    // Track how many times we've matched each name (for duplicates across modes)
+    const matchCount = new Map();
+
+    let matched = 0;
+    drops.forEach(d => {
+      const key = d.name.toLowerCase();
+      const entries = nameMap.get(key);
+      if (entries && entries.length) {
+        const usedIdx = matchCount.get(key) || 0;
+        const entry   = entries[Math.min(usedIdx, entries.length - 1)];
+        d.mode     = entry.mode;
+        d.category = entry.category;
+        d.section  = entry.category;
+        matchCount.set(key, usedIdx + 1);
+        matched++;
+      } else {
+        // No wiki match — use fallback classifier
+        d.category = classifyDropFallback(d.name, d.raw);
+        d.section  = d.category;
+      }
+    });
+
+    dbg(`STRUCTURE: name-matched ${matched}/${drops.length} drops`);
   } else {
     // Fallback: classify by item name / rarity heuristics
     dbg("STRUCTURE: falling back to heuristic classification");

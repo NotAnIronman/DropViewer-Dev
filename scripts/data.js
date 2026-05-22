@@ -21,6 +21,7 @@ export async function resolveCanonicalTitle(title) {
   const res = await fetch(url);
   const data = await res.json();
   const pages = data?.query?.pages;
+
   if (!pages) return title;
 
   const page = Object.values(pages)[0];
@@ -28,110 +29,16 @@ export async function resolveCanonicalTitle(title) {
 }
 
 // ============================================================================
-// BUCKET API — NPC DROPS
+// MODE + CATEGORY SORTING
 // ============================================================================
 
-export async function fetchNpcDropsBucket(pageName) {
-  dbg(`BUCKET: NPC fetch for "${pageName}"`);
-
-  const canonical = await resolveCanonicalTitle(pageName);
-  const query = `bucket('dropsline').select('page_name','item_name','drop_json').where('page_name','${canonical}').run()`;
-  const url = `${BUCKET_API}?action=bucket&format=json&origin=*&query=${encodeURIComponent(
-    query
-  )}`;
-
-  let data;
-  try {
-    const res = await fetch(url);
-    data = await res.json();
-  } catch (e) {
-    dbg("BUCKET ERROR: " + e.message);
-    return [];
-  }
-
-  const rows = data?.bucket || [];
-  dbg(`BUCKET: ${rows.length} rows for "${canonical}"`);
-
-  return rows.map((r) => {
-    const drop = r.drop_json ? JSON.parse(r.drop_json) : {};
-    return {
-      name: r.item_name || "",
-      qty: extractQtyFromDrop(drop),
-      rarity: extractRarityFromDrop(drop),
-      img: "",
-      section: deriveSectionFromDrop(r.item_name || "", drop),
-    };
-  });
-}
-
-// ============================================================================
-// BUCKET API — ITEM SOURCES
-// ============================================================================
-
-export async function fetchItemSourcesBucket(itemName) {
-  dbg(`BUCKET: item fetch for "${itemName}"`);
-
-  const canonical = await resolveCanonicalTitle(itemName);
-  const query = `bucket('dropsline').select('page_name','drop_json').where('item_name','${canonical}').run()`;
-  const url = `${BUCKET_API}?action=bucket&format=json&origin=*&query=${encodeURIComponent(
-    query
-  )}`;
-
-  let data;
-  try {
-    const res = await fetch(url);
-    data = await res.json();
-  } catch (e) {
-    dbg("BUCKET ERROR: " + e.message);
-    return [];
-  }
-
-  const rows = data?.bucket || [];
-
-  return rows.map((r) => {
-    const drop = r.drop_json ? JSON.parse(r.drop_json) : {};
-    return {
-      name: r.page_name || "",
-      img: "",
-      level: "",
-      qty: extractQtyFromDrop(drop),
-      rarity: extractRarityFromDrop(drop),
-    };
-  });
-}
-
-// ============================================================================
-// DROP PARSING HELPERS
-// ============================================================================
-
-export function extractQtyFromDrop(drop) {
-  if (!drop) return "";
-
-  if (drop["Drop Quantity"]) return String(drop["Drop Quantity"]);
-
-  for (const k of Object.keys(drop))
-    if (/quantity|qty/i.test(k)) return String(drop[k]);
-
-  return "";
-}
-
-export function extractRarityFromDrop(drop) {
-  if (!drop) return "";
-
-  if (drop.Rarity) return String(drop.Rarity);
-
-  if (drop["Alt Rarities"] && drop["Alt Rarities"].length)
-    return String(drop["Alt Rarities"][0]);
-
-  for (const k of Object.keys(drop))
-    if (/rarity|chance|rate/i.test(k)) return String(drop[k]);
-
-  return "";
-}
-
-// ============================================================================
-// DROP SECTION CLASSIFICATION (Wiki-style categories)
-// ============================================================================
+export const MODE_ORDER = [
+  "Normal Mode",
+  "Hard Mode",
+  "Story Mode",
+  "Challenge Mode",
+  "Default",
+];
 
 export const TABLE_ORDER = [
   "Always",
@@ -181,7 +88,10 @@ export const TABLE_COLORS = {
   "Rare Drop Table": "#4caf50",
 };
 
-// Known RDT items
+// ============================================================================
+// KNOWN RDT ITEMS
+// ============================================================================
+
 export const RDT_ITEMS = new Set([
   "Uncut onyx",
   "Uncut dragonstone",
@@ -214,77 +124,388 @@ export const RDT_ITEMS = new Set([
   "Orichalcite stone spirit",
 ]);
 
+// ============================================================================
+// BUCKET API — NPC DROPS
+// ============================================================================
+
+export async function fetchNpcDropsBucket(pageName) {
+  dbg(`BUCKET: NPC fetch for "${pageName}"`);
+
+  const canonical = await resolveCanonicalTitle(pageName);
+
+  const query = `bucket('dropsline').select('page_name','item_name','drop_json').where('page_name','${canonical}').run()`;
+
+  const url = `${BUCKET_API}?action=bucket&format=json&origin=*&query=${encodeURIComponent(
+    query
+  )}`;
+
+  let data;
+
+  try {
+    const res = await fetch(url);
+    data = await res.json();
+  } catch (e) {
+    dbg("BUCKET ERROR: " + e.message);
+    return [];
+  }
+
+  const rows = data?.bucket || [];
+
+  dbg(`BUCKET: ${rows.length} rows for "${canonical}"`);
+
+  return rows.map((r) => {
+    let drop = {};
+
+    try {
+      drop = r.drop_json ? JSON.parse(r.drop_json) : {};
+    } catch {
+      drop = {};
+    }
+
+    const mode = deriveModeFromDrop(drop);
+    const category = deriveSectionFromDrop(r.item_name || "", drop);
+
+    return {
+      name: r.item_name || "",
+      qty: extractQtyFromDrop(drop),
+      rarity: extractRarityFromDrop(drop),
+      img: "",
+
+      // NEW WIKI-STYLE GROUPING
+      mode,
+      category,
+
+      // BACKWARDS COMPATIBILITY
+      section: category,
+
+      // RAW DROP ACCESS
+      raw: drop,
+    };
+  });
+}
+
+// ============================================================================
+// BUCKET API — ITEM SOURCES
+// ============================================================================
+
+export async function fetchItemSourcesBucket(itemName) {
+  dbg(`BUCKET: item fetch for "${itemName}"`);
+
+  const canonical = await resolveCanonicalTitle(itemName);
+
+  const query = `bucket('dropsline').select('page_name','drop_json').where('item_name','${canonical}').run()`;
+
+  const url = `${BUCKET_API}?action=bucket&format=json&origin=*&query=${encodeURIComponent(
+    query
+  )}`;
+
+  let data;
+
+  try {
+    const res = await fetch(url);
+    data = await res.json();
+  } catch (e) {
+    dbg("BUCKET ERROR: " + e.message);
+    return [];
+  }
+
+  const rows = data?.bucket || [];
+
+  return rows.map((r) => {
+    let drop = {};
+
+    try {
+      drop = r.drop_json ? JSON.parse(r.drop_json) : {};
+    } catch {
+      drop = {};
+    }
+
+    return {
+      name: r.page_name || "",
+      img: "",
+      level: "",
+      qty: extractQtyFromDrop(drop),
+      rarity: extractRarityFromDrop(drop),
+      mode: deriveModeFromDrop(drop),
+      category: deriveSectionFromDrop(r.item_name || "", drop),
+      raw: drop,
+    };
+  });
+}
+
+// ============================================================================
+// DROP PARSING HELPERS
+// ============================================================================
+
+export function extractQtyFromDrop(drop) {
+  if (!drop) return "";
+
+  if (drop["Drop Quantity"]) {
+    return String(drop["Drop Quantity"]);
+  }
+
+  for (const k of Object.keys(drop)) {
+    if (/quantity|qty/i.test(k)) {
+      return String(drop[k]);
+    }
+  }
+
+  return "";
+}
+
+export function extractRarityFromDrop(drop) {
+  if (!drop) return "";
+
+  if (drop.Rarity) {
+    return String(drop.Rarity);
+  }
+
+  if (drop["Alt Rarities"] && drop["Alt Rarities"].length) {
+    return String(drop["Alt Rarities"][0]);
+  }
+
+  for (const k of Object.keys(drop)) {
+    if (/rarity|chance|rate/i.test(k)) {
+      return String(drop[k]);
+    }
+  }
+
+  return "";
+}
+
+// ============================================================================
+// MODE DETECTION
+// ============================================================================
+
+export function deriveModeFromDrop(drop) {
+  if (!drop) {
+    return "Normal Mode";
+  }
+
+  const modeText = String(
+    drop.Mode ||
+      drop.Version ||
+      drop.Difficulty ||
+      drop["NPC version"] ||
+      drop["Encounter"] ||
+      drop["Mode"] ||
+      ""
+  ).toLowerCase();
+
+  if (!modeText.trim()) {
+    return "Normal Mode";
+  }
+
+  if (/hard|hm\b/.test(modeText)) {
+    return "Hard Mode";
+  }
+
+  if (/story/.test(modeText)) {
+    return "Story Mode";
+  }
+
+  if (/challenge|cm\b/.test(modeText)) {
+    return "Challenge Mode";
+  }
+
+  if (/normal|nm\b/.test(modeText)) {
+    return "Normal Mode";
+  }
+
+  return modeText
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+// ============================================================================
+// DROP SECTION CLASSIFICATION (Wiki-style categories)
+// ============================================================================
+
 export function deriveSectionFromDrop(itemName, drop) {
   const name = (itemName || "").toLowerCase().trim();
-  const rarity = String(drop.Rarity || "").toLowerCase();
-  const dropType = String(drop["Drop type"] || "").toLowerCase();
 
-  if (rarity === "always") return "Always";
+  const rarity = String(drop?.Rarity || "").toLowerCase();
 
-  if (RDT_ITEMS.has(itemName)) return "Rare Drop Table";
-  if (/rare.?drop.?table|rdt/i.test(dropType)) return "Rare Drop Table";
+  const dropType = String(
+    drop?.["Drop type"] ||
+      drop?.["Drop category"] ||
+      drop?.Category ||
+      ""
+  ).toLowerCase();
 
-  if (/\bbones?\b|\bash(es)?\b|\bremains\b/i.test(name)) return "Bones";
+  // ALWAYS
+  if (rarity === "always") {
+    return "Always";
+  }
 
-  if (/^grimy |^clean |\bherb\b/.test(name) && !/seed/i.test(name))
+  // RDT
+  if (RDT_ITEMS.has(itemName)) {
+    return "Rare Drop Table";
+  }
+
+  if (/rare.?drop.?table|rdt/i.test(dropType)) {
+    return "Rare Drop Table";
+  }
+
+  // BONES
+  if (/\bbones?\b|\bash(es)?\b|\bremains\b/i.test(name)) {
+    return "Bones";
+  }
+
+  // HERBS
+  if (/^grimy |^clean |\bherb\b/.test(name) && !/seed/i.test(name)) {
     return "Herbs";
-  if (/\bherbs?\b/.test(name) && !/seed/i.test(name)) return "Herbs";
+  }
 
-  if (/\bseed(s)?\b/.test(name)) return "Seeds";
+  if (/\bherbs?\b/.test(name) && !/seed/i.test(name)) {
+    return "Herbs";
+  }
 
-  if (/stone.?spirit|spirit.?stone/i.test(name)) return "Stone Spirits";
+  // SEEDS
+  if (/\bseed(s)?\b/.test(name)) {
+    return "Seeds";
+  }
 
-  if (/\brune(s)?\b/.test(name) && !/runite/.test(name))
+  // STONE SPIRITS
+  if (/stone.?spirit|spirit.?stone/i.test(name)) {
+    return "Stone Spirits";
+  }
+
+  // RUNES / AMMO
+  if (/\brune(s)?\b/.test(name) && !/runite/.test(name)) {
     return "Runes & Ammunition";
+  }
+
   if (
     /\barrow(s|head)?\b|\bbolt(s|tip)?\b|\bdart(s)?\b|\bjavelin\b|\bthrowingaxe\b|\bthrown.?axe\b/i.test(
       name
     )
-  )
+  ) {
     return "Runes & Ammunition";
+  }
 
-  if (/\bgemstone\b|\bflawed gemstone\b|\bcrystal\b/i.test(name))
+  // GEMS
+  if (/\bgemstone\b|\bflawed gemstone\b|\bcrystal\b/i.test(name)) {
     return "Gems";
+  }
+
   if (
     /^uncut |\bsapphire\b|\bemerald\b|\bruby\b|\bdiamond\b|\bdragonstone\b|\bonyx\b|\bzenyte\b|\bhydrix\b/i.test(
       name
     )
-  )
+  ) {
     return "Gems";
+  }
 
+  // ORES / BARS
   if (
     /\bore\b|\bcoal\b|\b(runite|adamantite|mithril|steel|iron|gold|silver|orichalcite|drakolith|necrite|phasmatite|bane)\b.*\b(ore|bar|stone)\b/i.test(
       name
     )
-  )
+  ) {
     return "Ores & Bars";
+  }
+
   if (
     /\bbar\b/i.test(name) &&
     /(bronze|iron|steel|mithril|adamant|rune|dragon|necrit|orichalcite|drakolith|phasmatit|bane)/i.test(
       name
     )
-  )
+  ) {
     return "Ores & Bars";
+  }
 
-  if (/\bsalvage\b/i.test(name)) return "Salvage";
+  // SALVAGE
+  if (/\bsalvage\b/i.test(name)) {
+    return "Salvage";
+  }
 
+  // WEAPONS
   if (
     /\b(sword|scimitar|longsword|dagger|mace|halberd|spear|bow|staff|wand|crossbow|whip|flail|maul|axe|battleaxe|pickaxe|hatchet|claws?|fang)\b/i.test(
       name
     )
-  )
+  ) {
     return "Weapons & Armour";
+  }
+
+  // ARMOUR
   if (
     /\b(helm|helmet|platebody|chainbody|platelegs|plateskirt|full helm|kiteshield|sq shield|shield|coif|chaps|body|legs|gloves?|boots?|cape|amulet|ring|necklace|bracelet)\b/i.test(
       name
     )
-  )
+  ) {
     return "Weapons & Armour";
+  }
 
-  if (!dropType || dropType === "unique" || dropType === "reward")
+  // WIKI UNIQUE CATEGORIES
+  if (
+    !dropType ||
+    dropType === "unique" ||
+    dropType === "reward"
+  ) {
     return "Unique drops";
+  }
 
   return "Other";
+}
+
+// ============================================================================
+// GROUPING HELPERS
+// ============================================================================
+
+export function groupDrops(dropRows = []) {
+  const grouped = {};
+
+  for (const drop of dropRows) {
+    const mode = drop.mode || "Normal Mode";
+    const category = drop.category || "Other";
+
+    if (!grouped[mode]) {
+      grouped[mode] = {};
+    }
+
+    if (!grouped[mode][category]) {
+      grouped[mode][category] = [];
+    }
+
+    grouped[mode][category].push(drop);
+  }
+
+  return grouped;
+}
+
+export function sortModes(modes = []) {
+  return [...modes].sort((a, b) => {
+    const ai = MODE_ORDER.indexOf(a);
+    const bi = MODE_ORDER.indexOf(b);
+
+    const av = ai === -1 ? 999 : ai;
+    const bv = bi === -1 ? 999 : bi;
+
+    if (av !== bv) {
+      return av - bv;
+    }
+
+    return a.localeCompare(b);
+  });
+}
+
+export function sortCategories(categories = []) {
+  return [...categories].sort((a, b) => {
+    const ai = TABLE_ORDER.indexOf(a);
+    const bi = TABLE_ORDER.indexOf(b);
+
+    const av = ai === -1 ? 999 : ai;
+    const bv = bi === -1 ? 999 : bi;
+
+    if (av !== bv) {
+      return av - bv;
+    }
+
+    return a.localeCompare(b);
+  });
 }
 
 // ============================================================================
@@ -294,8 +515,13 @@ export function deriveSectionFromDrop(itemName, drop) {
 const itemIconCache = new Map();
 
 export async function fetchItemIcon(name) {
-  if (!name) return "";
-  if (itemIconCache.has(name)) return itemIconCache.get(name);
+  if (!name) {
+    return "";
+  }
+
+  if (itemIconCache.has(name)) {
+    return itemIconCache.get(name);
+  }
 
   try {
     const url = `${WIKI}?action=query&prop=pageimages&titles=${encodeURIComponent(
@@ -312,7 +538,9 @@ export async function fetchItemIcon(name) {
     }
 
     const src = Object.values(pages)[0]?.thumbnail?.source || "";
+
     itemIconCache.set(name, src);
+
     return src;
   } catch (e) {
     itemIconCache.set(name, "");
@@ -345,6 +573,7 @@ export async function loadMonsterList() {
   try {
     while (true) {
       const query = `[[Monster JSON::+]]|?Has name|limit=${limit}|offset=${offset}`;
+
       const url = `${WIKI}?action=ask&query=${encodeURIComponent(
         query
       )}&format=json&origin=*`;
@@ -353,29 +582,48 @@ export async function loadMonsterList() {
       const d = await r.json();
       const results = d?.query?.results;
 
-      if (!results) break;
+      if (!results) {
+        break;
+      }
 
       const keys = Object.keys(results);
-      if (!keys.length) break;
+
+      if (!keys.length) {
+        break;
+      }
 
       for (const key of keys) {
         const page = results[key];
+
         const name = page?.printouts?.["Has name"]?.[0] || page.fulltext;
-        if (name && !name.includes("/"))
-          monsters.push({ name, fulltext: page.fulltext });
+
+        if (name && !name.includes("/")) {
+          monsters.push({
+            name,
+            fulltext: page.fulltext,
+          });
+        }
       }
 
       dbg(`Loaded ${monsters.length} monsters (offset ${offset})`);
+
       status.textContent = `⏳ Loading... ${monsters.length} found`;
 
-      if (keys.length < limit) break;
+      if (keys.length < limit) {
+        break;
+      }
+
       offset += limit;
     }
 
     const seen = new Set();
+
     allMonsters = monsters
       .filter((m) => {
-        if (seen.has(m.name)) return false;
+        if (seen.has(m.name)) {
+          return false;
+        }
+
         seen.add(m.name);
         return true;
       })
@@ -386,6 +634,7 @@ export async function loadMonsterList() {
     count.textContent = allMonsters.length + " total";
   } catch (e) {
     dbg("Monster list load error: " + e.message);
+
     status.textContent =
       "⚠️ Could not load full list — use search box above";
 
@@ -397,3 +646,4 @@ export async function loadMonsterList() {
     }));
   }
 }
+```

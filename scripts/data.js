@@ -239,6 +239,8 @@ function extractItemNamesFromTable(tbl) {
   });
   return names;
 }
+
+function normaliseSectionName(raw) {
   const s = raw.toLowerCase().trim();
   if (/^100%$|^always$/i.test(s))            return "100%";
   if (/^unique/i.test(s))                    return "Unique";

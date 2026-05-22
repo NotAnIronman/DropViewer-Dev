@@ -174,6 +174,9 @@ async function buildFontFromFiles(ocr, meta, pngUrl) {
     shadow
   );
 
+  // Allow readLine to cross multiple word spaces (default is 1, which stops at "Ghoul (level:")
+  fontDef.maxspaces = meta.maxspaces !== undefined ? meta.maxspaces : 5;
+
   dbg(
     `Font generated: ${fontDef.chars.length} chars, width=${fontDef.width}, height=${fontDef.height}, basey=${fontDef.basey}, shadow=${fontDef.shadow}`
   );

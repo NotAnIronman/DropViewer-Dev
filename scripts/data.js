@@ -646,4 +646,3 @@ export async function loadMonsterList() {
     }));
   }
 }
-```

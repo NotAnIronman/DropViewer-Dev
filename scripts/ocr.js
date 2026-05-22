@@ -410,10 +410,10 @@ async function readExamineWindow() {
 
     if (ex) {
       // Capture the full examine row from tl.x to br right edge
-      // so right-aligned "(level: 50)" text is included in the strip
+      // Use extra height to catch level text if it renders on a different y
       nameAbsX = tl.x;
       nameAbsY = ex.y - PAD;
-      nameH = anchorExamine.height + PAD * 2;
+      nameH = anchorExamine.height + PAD * 2 + 8; // extra rows to catch level text
       nameW = br
         ? br.x + anchorBR.width - tl.x
         : Math.min(screen.width - tl.x, 500);
@@ -638,7 +638,13 @@ async function readExamineWindow() {
     dbg('resolved="' + resolved + '"');
     flashBadge("#4caf50");
 
-    if (stripped.hadLevel) {
+    // Determine NPC vs item: prefer hadLevel from OCR, but also check monster list
+    const isNpc = stripped.hadLevel || allMonsters.some(
+      m => m.name.toLowerCase() === resolved.toLowerCase()
+    );
+    dbg('isNpc=' + isNpc + ' (hadLevel=' + stripped.hadLevel + ', inMonsterList=' + allMonsters.some(m => m.name.toLowerCase() === resolved.toLowerCase()) + ')');
+
+    if (isNpc) {
       setCurrentMode("npc");
       document
         .querySelectorAll(".mode-tab")
@@ -757,7 +763,7 @@ export function initAlt1Integration() {
   document.body.appendChild(badge);
   _alt1Badge = badge;
 
-  dbg("DropViewer ocr.js v1.2 — full row capture, examine prefix strip");
+  dbg("DropViewer ocr.js v1.3 — monster list NPC detection fallback");
   dbg("alt1 v" + window.alt1.version);
   try {
     window.alt1.identifyAppUrl("./appconfig.json");

@@ -1,7 +1,13 @@
+// data.js — updated with wiki HTML layout parsing and merged, ordered drops
+
 import { dbg } from "./settings.js";
 
 export const WIKI = "https://runescape.wiki/api.php";
 export const BUCKET_API = WIKI;
+
+/* ------------------------------------------------------------------------- */
+/* BASIC CONSTANTS                                                           */
+/* ------------------------------------------------------------------------- */
 
 export async function resolveCanonicalTitle(title) {
   const url = `${WIKI}?action=query&redirects=1&titles=${encodeURIComponent(
@@ -239,7 +245,7 @@ export function extractRarityFromDrop(drop) {
 }
 
 /* ------------------------------------------------------------------------- */
-/* GROUPING + SORTING (LEGACY HELPERS)                                       */
+/* LEGACY GROUPING + SORTING HELPERS                                         */
 /* ------------------------------------------------------------------------- */
 
 export function groupDrops(dropRows = []) {
@@ -378,12 +384,9 @@ export async function loadMonsterList() {
 }
 
 /* ------------------------------------------------------------------------- */
-/* NEW: WIKI HTML LAYOUT + MERGED SORTING                                    */
+/* WIKI HTML LAYOUT PARSING                                                  */
 /* ------------------------------------------------------------------------- */
 
-/**
- * Fetch rendered HTML for a page via action=parse.
- */
 async function fetchWikiHtml(pageName) {
   const url = `${WIKI}?action=parse&page=${encodeURIComponent(
     pageName
@@ -399,56 +402,37 @@ async function fetchWikiHtml(pageName) {
   }
 }
 
-/**
- * Detect mode from a heading text.
- */
-function detectModeFromHeading(text) {
+function modeFromHeadingText(text) {
   const s = text.toLowerCase();
-  if (/hard mode/.test(s) || /\bhm\b/.test(s)) return "Hard Mode";
-  if (/story mode/.test(s)) return "Story Mode";
-  if (/challenge mode/.test(s) || /\bcm\b/.test(s)) return "Challenge Mode";
+  if (/drops\s*\(normal mode\)/i.test(s) || /normal mode/.test(s))
+    return "Normal Mode";
+  if (/drops\s*\(hard mode\)/i.test(s) || /hard mode/.test(s))
+    return "Hard Mode";
+  if (/drops\s*\(story mode\)/i.test(s) || /story mode/.test(s))
+    return "Story Mode";
+  if (/drops\s*\(challenge mode\)/i.test(s) || /challenge mode/.test(s))
+    return "Challenge Mode";
   return null;
 }
 
-/**
- * Heuristic: is this table a drop table?
- */
 function isDropTable(table) {
-  const headers = Array.from(table.querySelectorAll("th")).map((th) =>
-    th.textContent.trim().toLowerCase()
-  );
-  if (!headers.length) return false;
-
-  const hasItem = headers.some((h) => /item|name/.test(h));
-  const hasRarity = headers.some((h) =>
-    /rarity|chance|rate|drop/.test(h)
-  );
-
-  return hasItem && hasRarity;
+  const cls = table.className || "";
+  if (!/wikitable/.test(cls)) return false;
+  if (!table.querySelector("td.item-col")) return false;
+  return true;
 }
 
-/**
- * Extract item names from a drop table, in order.
- */
 function extractItemNamesFromTable(table) {
   const rows = Array.from(table.querySelectorAll("tr"));
-  if (!rows.length) return [];
-
-  // Skip header row(s)
-  const bodyRows = rows.slice(1);
   const items = [];
 
-  for (const tr of bodyRows) {
-    const cells = tr.querySelectorAll("td");
-    if (!cells.length) continue;
-
-    const firstCell = cells[0];
-    let name = firstCell.textContent || "";
-    name = name.replace(/\[[^\]]*\]/g, "").trim(); // strip footnote markers
-
+  for (const tr of rows) {
+    const link = tr.querySelector("td.item-col a");
+    if (!link) continue;
+    let name = link.textContent || "";
+    name = name.replace(/\[[^\]]*\]/g, "").trim();
     if (!name) continue;
     if (/^total$/i.test(name)) continue;
-
     items.push(name);
   }
 
@@ -456,9 +440,16 @@ function extractItemNamesFromTable(table) {
 }
 
 /**
- * Parse the wiki HTML into a layout:
+ * Parse wiki HTML into a layout:
  * [
- *   { mode: "Normal Mode", group: "Always", items: ["Item A", "Item B", ...] },
+ *   {
+ *     mode: "Normal Mode",
+ *     groups: [
+ *       { name: "100%", items: ["Bandos helmet", ...] },
+ *       { name: "Unique", items: [...] },
+ *       ...
+ *     ]
+ *   },
  *   ...
  * ]
  */
@@ -469,163 +460,221 @@ export async function fetchWikiDropLayout(pageName) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, "text/html");
 
-  const layout = [];
+  const root =
+    doc.querySelector(".mw-parser-output") || doc.body || doc.documentElement;
+
+  const children = Array.from(root.children);
+
+  const modesOrder = [];
+  const modeGroups = new Map();
   let currentMode = "Normal Mode";
+  let currentGroupName = null;
 
-  // We walk the content in order, tracking headings and tables.
-  const contentRoot =
-    doc.querySelector(".mw-parser-output") || doc.body || doc;
-
-  const children = Array.from(contentRoot.children);
-
-  for (const el of children) {
-    const tag = el.tagName?.toLowerCase();
-
-    if (tag === "h2" || tag === "h3" || tag === "h4") {
-      const headingText = el.textContent.trim();
-      const detectedMode = detectModeFromHeading(headingText);
-      if (detectedMode) {
-        currentMode = detectedMode;
-      }
-      continue;
-    }
-
-    if (tag === "table") {
-      const table = el;
-      if (!isDropTable(table)) continue;
-
-      // Group name: caption > previous heading > fallback
-      let groupName = "";
-
-      const caption = table.querySelector("caption");
-      if (caption) {
-        groupName = caption.textContent.trim();
-      }
-
-      if (!groupName) {
-        // Look backwards for nearest heading
-        let prev = table.previousElementSibling;
-        while (prev) {
-          const pt = prev.tagName?.toLowerCase();
-          if (pt === "h3" || pt === "h4") {
-            groupName = prev.textContent.trim();
-            break;
-          }
-          prev = prev.previousElementSibling;
-        }
-      }
-
-      if (!groupName) {
-        groupName = "Other";
-      }
-
-      const normalisedGroup = normaliseCategoryName(groupName);
-      const items = extractItemNamesFromTable(table);
-
-      layout.push({
-        mode: currentMode || "Normal Mode",
-        group: normalisedGroup,
-        rawGroup: groupName,
-        items,
+  function ensureMode(mode) {
+    if (!modeGroups.has(mode)) {
+      modeGroups.set(mode, {
+        order: [],
+        groups: new Map(),
       });
+      modesOrder.push(mode);
     }
   }
 
+  function ensureGroup(mode, groupName) {
+    ensureMode(mode);
+    const mg = modeGroups.get(mode);
+    if (!mg.groups.has(groupName)) {
+      mg.groups.set(groupName, { name: groupName, items: [] });
+      mg.order.push(groupName);
+    }
+    return mg.groups.get(groupName);
+  }
+
+  ensureMode(currentMode);
+
+  for (const el of children) {
+    let heading = null;
+
+    if (el.classList && el.classList.contains("mw-heading")) {
+      heading = el.querySelector("h1,h2,h3,h4,h5,h6");
+    } else if (/^H[1-6]$/.test(el.tagName || "")) {
+      heading = el;
+    }
+
+    if (heading) {
+      const text = (heading.textContent || "").trim();
+      if (!text) continue;
+
+      const mode = modeFromHeadingText(text);
+      if (mode) {
+        currentMode = mode;
+        ensureMode(currentMode);
+        currentGroupName = null;
+        continue;
+      }
+
+      // Non-mode heading: treat as potential group header.
+      currentGroupName = text;
+      continue;
+    }
+
+    if ((el.tagName || "").toLowerCase() === "table") {
+      const table = el;
+      if (!isDropTable(table)) continue;
+
+      const rawGroup = currentGroupName || "Other";
+      const groupName = normaliseCategoryName(rawGroup);
+      const group = ensureGroup(currentMode, groupName);
+
+      const items = extractItemNamesFromTable(table);
+      group.items.push(...items);
+    }
+  }
+
+  const layout = [];
+
+  for (const mode of modesOrder) {
+    const mg = modeGroups.get(mode);
+    const groups = mg.order.map((gName) => {
+      const g = mg.groups.get(gName);
+      return {
+        name: g.name,
+        items: g.items.slice(), // keep raw item names
+      };
+    });
+    layout.push({ mode, groups });
+  }
+
   dbg(
-    `WIKI LAYOUT: ${layout.length} drop tables found for "${pageName}"`
+    `WIKI LAYOUT: ${layout.reduce(
+      (acc, m) => acc + m.groups.length,
+      0
+    )} groups across ${layout.length} modes for "${pageName}"`
   );
 
   return layout;
 }
 
+/* ------------------------------------------------------------------------- */
+/* MERGING BUCKET DROPS WITH WIKI LAYOUT                                     */
+/* ------------------------------------------------------------------------- */
+
 /**
  * Merge bucket drops with wiki layout.
+ *
+ * layout: [
+ *   {
+ *     mode: "Normal Mode",
+ *     groups: [
+ *       { name: "100%", items: ["Bandos helmet", ...] },
+ *       ...
+ *     ]
+ *   },
+ *   ...
+ * ]
  *
  * Returns:
  * [
  *   {
  *     mode: "Normal Mode",
- *     group: "Always",
- *     drops: [drop, drop, ...] // in wiki order
+ *     groups: [
+ *       { name: "100%", drops: [drop, drop, ...] },
+ *       { name: "Unique", drops: [...] },
+ *       ...
+ *     ]
  *   },
  *   ...
  * ]
+ *
+ * Empty groups are included.
  */
 export function mergeDropsWithWikiLayout(drops = [], layout = []) {
   if (!layout.length) {
-    // No layout → fall back to grouping/sorting by our own rules.
+    // Fallback: use legacy grouping/sorting, but return in Option 1 shape.
     const grouped = groupDrops(drops);
     const modes = sortModes(Object.keys(grouped));
     const result = [];
 
     for (const mode of modes) {
       const cats = sortCategories(Object.keys(grouped[mode]));
-      for (const cat of cats) {
-        result.push({
-          mode,
-          group: cat,
-          drops: grouped[mode][cat],
-        });
-      }
+      const groups = cats.map((cat) => ({
+        name: cat,
+        drops: grouped[mode][cat],
+      }));
+      result.push({ mode, groups });
     }
 
     return result;
   }
 
-  // Map drops by name (case-insensitive) for matching.
   const remaining = new Set(drops);
   const nameMap = new Map();
   for (const drop of drops) {
-    const key = drop.name.toLowerCase();
+    const key = (drop.name || "").toLowerCase();
+    if (!key) continue;
     if (!nameMap.has(key)) nameMap.set(key, []);
     nameMap.get(key).push(drop);
   }
 
   const result = [];
 
-  for (const section of layout) {
-    const sectionDrops = [];
-    for (const itemName of section.items) {
-      const key = itemName.toLowerCase();
-      const list = nameMap.get(key);
-      if (!list || !list.length) continue;
+  for (const modeLayout of layout) {
+    const modeName = modeLayout.mode || "Normal Mode";
+    const groupsOut = [];
 
-      // Take all drops with this name (could be multiple modes/variants).
-      for (const d of list) {
-        if (!remaining.has(d)) continue;
-        remaining.delete(d);
+    for (const groupLayout of modeLayout.groups) {
+      const groupName = groupLayout.name;
+      const dropsOut = [];
 
-        // Override category to match wiki group; keep mode from bucket.
-        sectionDrops.push({
-          ...d,
-          category: section.group,
-          section: section.group,
-        });
+      for (const itemName of groupLayout.items) {
+        const key = (itemName || "").toLowerCase();
+        if (!key) continue;
+        const list = nameMap.get(key);
+        if (!list || !list.length) continue;
+
+        for (const d of list) {
+          if (!remaining.has(d)) continue;
+          remaining.delete(d);
+
+          dropsOut.push({
+            ...d,
+            mode: modeName,
+            category: groupName,
+            section: groupName,
+          });
+        }
       }
-    }
 
-    if (sectionDrops.length) {
-      result.push({
-        mode: section.mode || "Normal Mode",
-        group: section.group,
-        drops: sectionDrops,
+      // Include empty groups as requested.
+      groupsOut.push({
+        name: groupName,
+        drops: dropsOut,
       });
     }
+
+    result.push({
+      mode: modeName,
+      groups: groupsOut,
+    });
   }
 
-  // Any remaining drops that weren't matched to a table → append at the end.
   if (remaining.size) {
-    const leftoversByMode = {};
+    const leftoversByMode = new Map();
     for (const d of remaining) {
       const mode = d.mode || "Normal Mode";
-      if (!leftoversByMode[mode]) leftoversByMode[mode] = [];
-      leftoversByMode[mode].push(d);
+      if (!leftoversByMode.has(mode)) leftoversByMode.set(mode, []);
+      leftoversByMode.get(mode).push(d);
     }
 
-    for (const [mode, list] of Object.entries(leftoversByMode)) {
-      result.push({
-        mode,
-        group: "Other",
+    for (const [mode, list] of leftoversByMode.entries()) {
+      let modeEntry = result.find((m) => m.mode === mode);
+      if (!modeEntry) {
+        modeEntry = { mode, groups: [] };
+        result.push(modeEntry);
+      }
+
+      modeEntry.groups.push({
+        name: "Other",
         drops: list.map((d) => ({
           ...d,
           category: d.category || "Other",
@@ -645,11 +694,20 @@ export function mergeDropsWithWikiLayout(drops = [], layout = []) {
  * - Fetches wiki layout
  * - Returns merged, wiki-ordered structure
  *
- * Result shape:
+ * Result shape (Option 1):
  * [
- *   { mode: "Normal Mode", group: "Always", drops: [...] },
- *   { mode: "Normal Mode", group: "Main drop", drops: [...] },
- *   ...
+ *   {
+ *     mode: "Normal Mode",
+ *     groups: [
+ *       { name: "100%", drops: [...] },
+ *       { name: "Unique", drops: [...] },
+ *       ...
+ *     ]
+ *   },
+ *   {
+ *     mode: "Hard Mode",
+ *     groups: [...]
+ *   }
  * ]
  */
 export async function fetchNpcDropsSorted(pageName) {

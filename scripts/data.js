@@ -153,7 +153,7 @@ export async function fetchNpcDropsBucket(pageName) {
 
   dbg(`BUCKET: ${rows.length} rows for "${canonical}"`);
 
-  return rows.map((r) => {
+  const parsed = rows.map((r) => {
     let drop = {};
 
     try {
@@ -182,6 +182,8 @@ export async function fetchNpcDropsBucket(pageName) {
       raw: drop,
     };
   });
+
+  return applyWikiCategoryOverrides(canonical, parsed);
 }
 
 // ============================================================================
@@ -282,40 +284,20 @@ export function deriveModeFromDrop(drop) {
     return "Normal Mode";
   }
 
-  const modeText = String(
-    drop.Mode ||
-      drop.Version ||
-      drop.Difficulty ||
-      drop["NPC version"] ||
-      drop["Encounter"] ||
-      drop["Mode"] ||
-      ""
-  ).toLowerCase();
+  const raw = JSON.stringify(drop).toLowerCase();
 
-  if (!modeText.trim()) {
-    return "Normal Mode";
-  }
+  // Bucket data is inconsistent.
+  // We therefore scan the ENTIRE payload.
 
-  if (/hard|hm\b/.test(modeText)) {
+  if (/hard mode|hard_mode|hm/.test(raw)) {
     return "Hard Mode";
   }
 
-  if (/story/.test(modeText)) {
-    return "Story Mode";
-  }
-
-  if (/challenge|cm\b/.test(modeText)) {
-    return "Challenge Mode";
-  }
-
-  if (/normal|nm\b/.test(modeText)) {
+  if (/normal mode|normal_mode|nm/.test(raw)) {
     return "Normal Mode";
   }
 
-  return modeText
-    .split(" ")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
+  return "Normal Mode";
 }
 
 // ============================================================================
@@ -449,6 +431,127 @@ export function deriveSectionFromDrop(itemName, drop) {
   }
 
   return "Other";
+}
+
+// ============================================================================
+// WIKI CATEGORY OVERRIDES
+// ============================================================================
+
+// IMPORTANT:
+//
+// The Bucket API does NOT always expose the same grouping structure the wiki
+// visually renders.
+//
+// Some bosses therefore need explicit grouping overrides.
+//
+// This is NORMAL and matches how the wiki itself structures certain tables.
+
+export const PAGE_CATEGORY_OVERRIDES = {
+  "General Graardor": {
+    normal: {
+      always: ["Ourg bones (General Graardor)"],
+
+      unique: [
+        "Bandos chestplate",
+        "Bandos tassets",
+        "Bandos boots",
+        "Bandos gloves",
+        "Bandos helmet",
+        "Bandos hilt",
+        "Warpriest of Bandos helmet",
+        "Warpriest of Bandos boots",
+        "Warpriest of Bandos cape",
+      ],
+
+      godsword: [
+        "Godsword shard 1",
+        "Godsword shard 2",
+        "Godsword shard 3",
+      ],
+
+      spirits: [
+        "Phasmatite stone spirit",
+        "Necrite stone spirit",
+        "Orichalcite stone spirit",
+        "Drakolith stone spirit",
+      ],
+    },
+
+    hard: {
+      always: ["Ourg bones (General Graardor)"],
+
+      unique: [
+        "Bandos chestplate",
+        "Bandos tassets",
+        "Bandos boots",
+        "Bandos gloves",
+        "Bandos helmet",
+        "Bandos hilt",
+        "Warpriest of Bandos helmet",
+        "Warpriest of Bandos boots",
+        "Warpriest of Bandos cape",
+      ],
+
+      godsword: [
+        "Godsword shard 1",
+        "Godsword shard 2",
+        "Godsword shard 3",
+      ],
+
+      spirits: [
+        "Phasmatite stone spirit",
+        "Necrite stone spirit",
+        "Orichalcite stone spirit",
+        "Drakolith stone spirit",
+      ],
+    },
+  },
+};
+
+export function applyWikiCategoryOverrides(pageName, drops = []) {
+  const override = PAGE_CATEGORY_OVERRIDES[pageName];
+
+  if (!override) {
+    return drops;
+  }
+
+  return drops.map((drop) => {
+    const name = drop.name;
+    const modeKey = /hard/i.test(drop.mode) ? "hard" : "normal";
+
+    const mode = override[modeKey];
+
+    if (!mode) {
+      return drop;
+    }
+
+    if (mode.always?.includes(name)) {
+      drop.category = "100%";
+      drop.section = "100%";
+    }
+
+    else if (mode.unique?.includes(name)) {
+      drop.category = "Unique";
+      drop.section = "Unique";
+    }
+
+    else if (mode.godsword?.includes(name)) {
+      drop.category = "Godsword shard table";
+      drop.section = "Godsword shard table";
+    }
+
+    else if (mode.spirits?.includes(name)) {
+      drop.category = "Stone spirits";
+      drop.section = "Stone spirits";
+    }
+
+    else if (RDT_ITEMS.has(name)) {
+      drop.category = "Gem and Rare drop table";
+      drop.section = "Gem and Rare drop table";
+    }
+
+    return drop;
+  });
 }
 
 // ============================================================================

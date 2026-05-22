@@ -409,12 +409,14 @@ async function readExamineWindow() {
     let nameAbsX, nameAbsY, nameW, nameH;
 
     if (ex) {
-      nameAbsX = ex.x + anchorExamine.width + 3;
+      // Capture the full examine row from tl.x to br right edge
+      // so right-aligned "(level: 50)" text is included in the strip
+      nameAbsX = tl.x;
       nameAbsY = ex.y - PAD;
       nameH = anchorExamine.height + PAD * 2;
       nameW = br
-        ? br.x + anchorBR.width - nameAbsX + 20
-        : Math.min(screen.width - nameAbsX, 400);
+        ? br.x + anchorBR.width - tl.x
+        : Math.min(screen.width - tl.x, 500);
     } else if (br) {
       nameAbsX = tl.x;
       nameAbsY = tl.y + anchorTL.height - PAD;
@@ -611,6 +613,14 @@ async function readExamineWindow() {
     }
     dbg('OCR raw: "' + tesseractRaw + '"');
 
+    // Strip leading "Examine " prefix — we now capture the full menu row
+    // which includes the "Examine" label before the NPC/item name
+    const examinePrefix = tesseractRaw.match(/^Examine\s+/i);
+    if (examinePrefix) {
+      tesseractRaw = tesseractRaw.slice(examinePrefix[0].length);
+      dbg('Stripped examine prefix → "' + tesseractRaw + '"');
+    }
+
     const stripped = stripLevelSuffix(tesseractRaw);
     dbg(
       'rawAfter="' +
@@ -747,7 +757,7 @@ export function initAlt1Integration() {
   document.body.appendChild(badge);
   _alt1Badge = badge;
 
-  dbg("DropViewer ocr.js v1.1 — maxspaces=5, adaptive threshold");
+  dbg("DropViewer ocr.js v1.2 — full row capture, examine prefix strip");
   dbg("alt1 v" + window.alt1.version);
   try {
     window.alt1.identifyAppUrl("./appconfig.json");

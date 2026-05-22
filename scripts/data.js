@@ -118,7 +118,15 @@ export async function fetchDropStructure(pageName) {
 
   const children = Array.from(content.children);
 
-  // Find the index of the first "Drops" heading (H2 level)
+  // DIAGNOSTIC: log first 30 children to see exact structure
+  dbg(`STRUCTURE: content has ${children.length} children`);
+  children.slice(0, 30).forEach((el, i) => {
+    const tag = el.tagName;
+    const cls = el.className?.slice(0, 50) || "";
+    const txt = el.textContent?.slice(0, 60).replace(/\n/g, " ").trim() || "";
+    const id  = el.querySelector?.("[id]")?.id || "";
+    dbg(`  [${i}] <${tag}> class="${cls}" id="${id}" text="${txt}"`);
+  });
   // Wiki uses: id="Drops", id="Drops_(normal_mode)", id="Drops_(hard_mode)" etc.
   let startIdx = -1;
   for (let i = 0; i < children.length; i++) {

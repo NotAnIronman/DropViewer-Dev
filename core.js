@@ -12,7 +12,10 @@ import {
   loadMonsterList,
   allMonsters,
   TABLE_ORDER,
-  WIKI
+  WIKI,
+  groupDrops,
+  sortModes,
+  sortCategories
 } from "./scripts/data.js";
 import {
   showBrowser,
@@ -332,32 +335,34 @@ export async function lookupPage(title) {
     return;
   }
 
-  // Build wiki-style ordered sections
-  const sectionsMap = new Map();
+  // Group drops by mode then category using the new data layer
+  const grouped = groupDrops(rows);
+  const modes   = sortModes(Object.keys(grouped));
 
-  for (const row of rows) {
-    const key = row.section;
-    if (!sectionsMap.has(key)) sectionsMap.set(key, []);
-    sectionsMap.get(key).push({
-      name: row.name,
-      qty: row.qty,
-      rarity: row.rarity,
-      img: row.img
-    });
-  }
+  // Build variants array for renderAllSections
+  const variants = modes.map(mode => {
+    const categories = sortCategories(Object.keys(grouped[mode]));
+    const sections   = categories.map(cat => ({
+      name: cat,
+      rows: grouped[mode][cat].map(r => ({
+        name:   r.name,
+        qty:    r.qty,
+        rarity: r.rarity,
+        img:    r.img,
+      })),
+    })).filter(s => s.rows.length > 0);
 
-  const sections = Array.from(sectionsMap.entries())
-    .sort(([a], [b]) => {
-      const ai = TABLE_ORDER.indexOf(a);
-      const bi = TABLE_ORDER.indexOf(b);
-      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-    })
-    .map(([name, secRows]) => ({ name, rows: secRows }));
+    return {
+      label:  mode,
+      isHard: /hard/i.test(mode),
+      sections,
+    };
+  }).filter(v => v.sections.length > 0);
 
   setStatus("ok", `✅ ${rows.length} drops for ${title}`);
   showDrops();
 
-  renderAllSections([{ label: "Drops", isHard: false, sections }]);
+  renderAllSections(variants);
 
   saveNavState("drops", title, title, 0);
 }

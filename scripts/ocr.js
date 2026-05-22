@@ -521,22 +521,16 @@ async function readExamineWindow() {
     const rawCanvas = imgDataToCanvas({ width: cW, height: SH, data: SD.slice(0, cW * SH * 4) });
     dbg("RAW strip (pre-threshold): " + rawCanvas.toDataURL());
 
-    // Determine whether text is dark-on-light or light-on-dark and threshold accordingly
-    let brightSum = 0;
-    for (let i = 0; i < cW * SH; i++) {
-      brightSum += (cD.data[i*4] + cD.data[i*4+1] + cD.data[i*4+2]) / 3;
-    }
-    const avgBright = brightSum / (cW * SH);
-    // If avg > 128: light background, dark text → dark pixels become white (text)
-    // If avg < 128: dark background, light text → light pixels become white (text)
+    // Threshold: any pixel where the brightest channel is significantly above background
+    // Use max(R,G,B) so green (0,255,0) and yellow (255,255,0) both count as text
+    // Background is near (0,0,0) so threshold at 80 cleanly separates text from bg
     const remapped = new Uint8ClampedArray(cW * SH * 4);
     for (let i = 0; i < cW * SH; i++) {
       const r = cD.data[i * 4 + 0];
       const g = cD.data[i * 4 + 1];
       const b = cD.data[i * 4 + 2];
-      const br = (r + g + b) / 3;
-      const isText = avgBright > 128 ? br < avgBright - 40 : br > avgBright + 40;
-      const col = isText ? 255 : 0;
+      const maxCh = Math.max(r, g, b);
+      const col = maxCh > 80 ? 255 : 0; // text (any bright colour) → white, bg → black
       remapped[i * 4 + 0] = col;
       remapped[i * 4 + 1] = col;
       remapped[i * 4 + 2] = col;
@@ -765,7 +759,7 @@ export function initAlt1Integration() {
   document.body.appendChild(badge);
   _alt1Badge = badge;
 
-  dbg("DropViewer ocr.js v1.4 — raw strip dump, restored capture area");
+  dbg("DropViewer ocr.js v1.5 — max-channel threshold catches green+yellow text");
   dbg("alt1 v" + window.alt1.version);
   try {
     window.alt1.identifyAppUrl("./appconfig.json");

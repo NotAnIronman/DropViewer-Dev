@@ -409,14 +409,12 @@ async function readExamineWindow() {
     let nameAbsX, nameAbsY, nameW, nameH;
 
     if (ex) {
-      // Capture the full examine row from tl.x to br right edge
-      // Use extra height to catch level text if it renders on a different y
-      nameAbsX = tl.x;
+      nameAbsX = ex.x + anchorExamine.width + 3;
       nameAbsY = ex.y - PAD;
-      nameH = anchorExamine.height + PAD * 2 + 8; // extra rows to catch level text
+      nameH = anchorExamine.height + PAD * 2;
       nameW = br
-        ? br.x + anchorBR.width - tl.x
-        : Math.min(screen.width - tl.x, 500);
+        ? br.x + anchorBR.width - nameAbsX
+        : Math.min(screen.width - nameAbsX, 400);
     } else if (br) {
       nameAbsX = tl.x;
       nameAbsY = tl.y + anchorTL.height - PAD;
@@ -518,6 +516,10 @@ async function readExamineWindow() {
         cD.data[d + 3] = 255;
       }
     }
+
+    // Dump RAW strip before any processing so we can see original colours
+    const rawCanvas = imgDataToCanvas({ width: cW, height: SH, data: SD.slice(0, cW * SH * 4) });
+    dbg("RAW strip (pre-threshold): " + rawCanvas.toDataURL());
 
     // Determine whether text is dark-on-light or light-on-dark and threshold accordingly
     let brightSum = 0;
@@ -763,7 +765,7 @@ export function initAlt1Integration() {
   document.body.appendChild(badge);
   _alt1Badge = badge;
 
-  dbg("DropViewer ocr.js v1.3 — monster list NPC detection fallback");
+  dbg("DropViewer ocr.js v1.4 — raw strip dump, restored capture area");
   dbg("alt1 v" + window.alt1.version);
   try {
     window.alt1.identifyAppUrl("./appconfig.json");

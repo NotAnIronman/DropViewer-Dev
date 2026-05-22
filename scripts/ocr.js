@@ -459,45 +459,39 @@ async function readExamineWindow() {
       }
     }
 
-    const gaps = [];
-    let inGap = false;
-    let gapStart = 0;
-
-    for (let gx = 0; gx < SW; gx++) {
-      if (!colBright[gx] && !inGap) {
-        inGap = true;
-        gapStart = gx;
-      } else if (colBright[gx] && inGap) {
-        gaps.push({ start: gapStart, end: gx - 1 });
-        inGap = false;
-      }
-    }
-    if (inGap) gaps.push({ start: gapStart, end: SW - 1 });
-
+    // When BR anchor is found, trust the strip width fully — don't clip on gaps
+    // (gap clipping was cutting off level suffixes like "(level: 50)")
     let clipCol = SW;
-    for (let gi = gaps.length - 1; gi >= 0; gi--) {
-      const g = gaps[gi];
-      if (g.end - g.start + 1 < 10) continue; // skip word-space gaps, only clip large gaps (border/noise)
+    if (!br) {
+      // TL-only fallback: use gap clipping to avoid border noise
+      const gaps = [];
+      let inGap = false;
+      let gapStart = 0;
 
-      let hL = false;
-      let hR = false;
-
-      for (let lx = g.start - 1; lx >= 0; lx--) {
-        if (colBright[lx]) {
-          hL = true;
-          break;
+      for (let gx = 0; gx < SW; gx++) {
+        if (!colBright[gx] && !inGap) {
+          inGap = true;
+          gapStart = gx;
+        } else if (colBright[gx] && inGap) {
+          gaps.push({ start: gapStart, end: gx - 1 });
+          inGap = false;
         }
       }
-      for (let rx = g.end + 1; rx < SW; rx++) {
-        if (colBright[rx]) {
-          hR = true;
-          break;
-        }
-      }
+      if (inGap) gaps.push({ start: gapStart, end: SW - 1 });
 
-      if (hL && hR) {
-        clipCol = g.start;
-        break;
+      for (let gi = gaps.length - 1; gi >= 0; gi--) {
+        const g = gaps[gi];
+        if (g.end - g.start + 1 < 10) continue;
+
+        let hL = false;
+        let hR = false;
+        for (let lx = g.start - 1; lx >= 0; lx--) {
+          if (colBright[lx]) { hL = true; break; }
+        }
+        for (let rx = g.end + 1; rx < SW; rx++) {
+          if (colBright[rx]) { hR = true; break; }
+        }
+        if (hL && hR) { clipCol = g.start; break; }
       }
     }
 

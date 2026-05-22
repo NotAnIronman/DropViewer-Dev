@@ -542,6 +542,9 @@ async function readExamineWindow() {
     const remappedData = { width: cW, height: SH, data: remapped };
     const unscaledCanvas = imgDataToCanvas(remappedData);
 
+    // Debug: dump the remapped strip as a data URL
+    dbg("OCR strip (copy to browser): " + unscaledCanvas.toDataURL());
+
     // Scaled canvas for debug preview only
     const scaled = scaleCanvas(unscaledCanvas, 4);
 

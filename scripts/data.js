@@ -76,8 +76,8 @@ export const TABLE_COLORS = {
 
 // ============================================================================
 // WIKI STRUCTURE SCRAPER
-// Uses action=parse to get rendered HTML, then reads h3/h4 drop section
-// headers and the number of <tr> rows under each one.
+// Uses action=parse to get rendered HTML, reads drop section headers and
+// table row counts to positionally map bucket rows to categories.
 // Returns: [{ mode, category, count }, ...]  in wiki display order
 // ============================================================================
 
@@ -101,80 +101,134 @@ export async function fetchDropStructure(pageName) {
   const parser = new DOMParser();
   const doc    = parser.parseFromString(html, "text/html");
 
-  // Find the #Drops anchor
-  const dropsAnchor = doc.querySelector("#Drops, [id='Drops']");
-  if (!dropsAnchor) {
-    dbg("STRUCTURE: no #Drops anchor found");
+  // The wiki renders structure as:
+  //   <div class="mw-heading mw-heading2"><h2>Drops (normal mode)</h2></div>
+  //   <div class="mw-heading mw-heading3"><h3>100%</h3></div>
+  //   <table>...<tbody><tr>...</tr></tbody></table>
+  //
+  // We find the first drop-related heading then walk ALL siblings of the
+  // content div collecting mode/category/count in order.
+
+  // Find the content wrapper — all page content is children of .mw-parser-output
+  const content = doc.querySelector(".mw-parser-output");
+  if (!content) {
+    dbg("STRUCTURE: no .mw-parser-output found");
     return null;
   }
 
-  // Walk from the #Drops heading element forward through siblings
-  // collecting h3/h4 section names and the <tr> counts beneath each
-  const sections = [];
+  const children = Array.from(content.children);
+
+  // Find the index of the first "Drops" heading (H2 level)
+  // Wiki uses: id="Drops", id="Drops_(normal_mode)", id="Drops_(hard_mode)" etc.
+  let startIdx = -1;
+  for (let i = 0; i < children.length; i++) {
+    const el  = children[i];
+    const h2  = el.querySelector("h2");
+    const id  = el.querySelector("a[id]")?.id || el.querySelector("[id]")?.id || "";
+    if (h2 && /drops/i.test(id + " " + h2.textContent)) {
+      startIdx = i;
+      break;
+    }
+  }
+
+  if (startIdx === -1) {
+    dbg("STRUCTURE: no Drops heading found");
+    return null;
+  }
+
+  const sections      = [];
   let currentMode     = "Normal Mode";
   let currentCategory = null;
+  let hasExplicitModes = false;
 
-  // The anchor is inside a heading — start from its parent heading element
-  let el = dropsAnchor.closest("h2, h3, h4") || dropsAnchor;
-  el = el.nextElementSibling;
+  for (let i = startIdx; i < children.length; i++) {
+    const el  = children[i];
+    const h2  = el.querySelector("h2");
+    const h3  = el.querySelector("h3");
+    const h4  = el.querySelector("h4");
 
-  while (el) {
-    const tag = el.tagName.toUpperCase();
+    // H2 heading
+    if (h2) {
+      const text = h2.textContent.replace(/\[.*?\]/g, "").trim();
 
-    // Stop when we hit a new h2 that isn't the drops section
-    if (tag === "H2") break;
+      // Stop at a new unrelated H2 (not a drops heading)
+      if (i > startIdx && !/drops/i.test(text)) break;
 
-    if (tag === "H3" || tag === "H4") {
-      const text = el.textContent.replace(/\[edit.*?\]/g, "").trim();
+      // Detect mode from H2 text or its anchor id
+      const anchorId = el.querySelector("a[id]")?.id || "";
+      const combined = (text + " " + anchorId).toLowerCase();
 
-      // Detect difficulty mode headers like "Drops (hard mode)"
-      if (/hard.?mode/i.test(text)) {
+      if (/hard.?mode/i.test(combined)) {
         currentMode = "Hard Mode";
-        el = el.nextElementSibling;
-        continue;
-      }
-      if (/normal.?mode/i.test(text)) {
+        hasExplicitModes = true;
+      } else if (/normal.?mode/i.test(combined)) {
         currentMode = "Normal Mode";
-        el = el.nextElementSibling;
-        continue;
-      }
-      if (/story.?mode/i.test(text)) {
+        hasExplicitModes = true;
+      } else if (/story.?mode/i.test(combined)) {
         currentMode = "Story Mode";
-        el = el.nextElementSibling;
-        continue;
+        hasExplicitModes = true;
+      } else if (/challenge.?mode/i.test(combined)) {
+        currentMode = "Challenge Mode";
+        hasExplicitModes = true;
       }
-
-      // Map heading text to canonical category name
-      currentCategory = normaliseSectionName(text);
-
-      el = el.nextElementSibling;
+      // Reset category when mode changes
+      currentCategory = null;
       continue;
     }
 
-    // Count data rows in drop tables under this heading
-    if (tag === "TABLE" && currentCategory) {
-      // Count <tr> rows that are actual item rows (not header rows)
-      // Header rows contain <th> cells; item rows contain <td> cells
-      const rows = el.querySelectorAll("tr");
-      let count = 0;
-      rows.forEach(row => {
-        // Item rows have td cells — skip pure header rows (only th)
-        if (row.querySelector("td")) count++;
-      });
+    // H3 heading — drop group/category (e.g. "100%", "Unique", "Tertiary")
+    if (h3) {
+      const text = h3.textContent.replace(/\[.*?\]/g, "").trim();
+      currentCategory = normaliseSectionName(text);
+      dbg(`STRUCTURE: h3 → "${currentCategory}" [${currentMode}]`);
+      continue;
+    }
+
+    // H4 heading — sub-group (e.g. variant hobgoblins, specific combat styles)
+    // Treat as a new category within the current mode
+    if (h4) {
+      const text = h4.textContent.replace(/\[.*?\]/g, "").trim();
+      currentCategory = normaliseSectionName(text);
+      dbg(`STRUCTURE: h4 → "${currentCategory}" [${currentMode}]`);
+      continue;
+    }
+
+    // Table — count item rows under the current category
+    if (el.tagName === "TABLE" && currentCategory) {
+      // Count <tr> rows that have at least one <td> (skip header rows with only <th>)
+      const trs   = el.querySelectorAll("tbody tr");
+      let   count = 0;
+      trs.forEach(tr => { if (tr.querySelector("td")) count++; });
 
       if (count > 0) {
         sections.push({ mode: currentMode, category: currentCategory, count });
-        dbg(`STRUCTURE: [${currentMode}] "${currentCategory}" = ${count} items`);
+        dbg(`STRUCTURE: [${currentMode}] "${currentCategory}" = ${count} rows`);
       }
+      continue;
     }
 
-    el = el.nextElementSibling;
+    // A div that directly contains a table (wiki sometimes wraps tables)
+    if (el.tagName === "DIV" && currentCategory) {
+      const tables = el.querySelectorAll("table");
+      tables.forEach(tbl => {
+        const trs   = tbl.querySelectorAll("tbody tr");
+        let   count = 0;
+        trs.forEach(tr => { if (tr.querySelector("td")) count++; });
+        if (count > 0) {
+          sections.push({ mode: currentMode, category: currentCategory, count });
+          dbg(`STRUCTURE: [${currentMode}] "${currentCategory}" = ${count} rows (wrapped)`);
+        }
+      });
+    }
   }
 
   if (!sections.length) {
-    dbg("STRUCTURE: no sections found");
+    dbg("STRUCTURE: no sections parsed — will use fallback");
     return null;
   }
+
+  const total = sections.reduce((s, x) => s + x.count, 0);
+  dbg(`STRUCTURE: ${sections.length} sections, ${total} total rows, explicit modes: ${hasExplicitModes}`);
 
   structureCache.set(pageName, sections);
   return sections;

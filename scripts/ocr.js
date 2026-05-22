@@ -410,7 +410,7 @@ async function readExamineWindow() {
       nameAbsY = ex.y - PAD;
       nameH = anchorExamine.height + PAD * 2;
       nameW = br
-        ? br.x + anchorBR.width - nameAbsX
+        ? br.x + anchorBR.width - nameAbsX + 20
         : Math.min(screen.width - nameAbsX, 400);
     } else if (br) {
       nameAbsX = tl.x;
@@ -447,6 +447,7 @@ async function readExamineWindow() {
     const SW = stripRaw.width || nameW;
     const SH = stripRaw.height || nameH;
     const SD = stripRaw.data;
+    dbg(`Strip: requested ${nameW}x${nameH} at (${nameAbsX},${nameAbsY}), got ${SW}x${SH}`);
 
     const colBright = new Uint8Array(SW);
     for (let cx = 0; cx < SW; cx++) {

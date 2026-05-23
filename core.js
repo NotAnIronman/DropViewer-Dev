@@ -1,7 +1,5 @@
 // core.js
-// ============================================================================
 // CORE APPLICATION LOGIC — State, Lookup Pipelines, Disambiguation, Init
-// ============================================================================
 
 import { dbg, setStatus, applyToggleUI, initSettingsUI } from "./scripts/settings.js";
 import {
@@ -33,9 +31,7 @@ import {
   resolveOcrName
 } from "./scripts/ocr.js";
 
-// ============================================================================
 // GLOBAL STATE
-// ============================================================================
 
 export let currentMode = "npc";       // "npc" or "item"
 export let inDropsView = false;
@@ -65,9 +61,7 @@ export function getSavedNav() {
   return navHistory[currentMode] || null;
 }
 
-// ============================================================================
 // DISAMBIGUATION HELPERS
-// ============================================================================
 
 export async function checkDisambig(title) {
   const url = `${WIKI}?action=query&titles=${encodeURIComponent(
@@ -99,10 +93,7 @@ export async function getDisambigLinks(title) {
     .filter((l) => !l.includes("disambiguation"));
 }
 
-// ============================================================================
 // FUZZY SEARCH HELPERS
-// ============================================================================
-
 export function editDistance(a, b) {
   a = a.toLowerCase();
   b = b.toLowerCase();
@@ -181,10 +172,7 @@ export async function suggestAlternatives(title) {
   }
 }
 
-// ============================================================================
 // RARITY HELPERS
-// ============================================================================
-
 export function rarityClass(r) {
   if (!r) return { label: "?", cls: "b-unknown" };
 
@@ -243,10 +231,7 @@ export function rarityToChance(r) {
 window.rarityClass = rarityClass;
 window.rarityToChance = rarityToChance;
 
-// ============================================================================
 // LOOKUP PIPELINES
-// ============================================================================
-
 export async function lookup(name) {
   if (!name) return;
 
@@ -455,10 +440,7 @@ export async function lookupItemSources(name) {
   saveNavState("drops", title, title, 0);
 }
 
-// ============================================================================
 // APPLICATION INITIALIZATION
-// ============================================================================
-
 export async function initApp() {
   dbg("Initializing DropViewer...");
 
@@ -466,12 +448,13 @@ export async function initApp() {
   initSettingsUI();
   showBrowser();
 
-  // Load monster list
-  await loadMonsterList();
-
-  // Initialize UI events
-  const { initUI } = await import("./scripts/ui.js");
+  // Init UI first so renderNpcList is ready to call
+  const { initUI, renderNpcList } = await import("./scripts/ui.js");
   initUI();
+
+  // Load monster list then immediately render it
+  await loadMonsterList();
+  renderNpcList("");
 
   // Initialize Alt1 integration
   autoPollAlt1();

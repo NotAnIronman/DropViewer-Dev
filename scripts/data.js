@@ -722,7 +722,7 @@ export async function loadMonsterList() {
     count.textContent  = allMonsters.length + " total";
   } catch (e) {
     dbg("Monster list load error: " + e.message);
-    status.textContent = "⚠️ Could not load full list — use search box above";
+    status.textContent = "Could not load full list — use search box above";
     allMonsters = POPULAR_NPCS.map(n => ({ name: n.name, fulltext: n.name, cat: n.cat, icon: n.icon }));
   }
 }

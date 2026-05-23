@@ -467,7 +467,7 @@ export function initApp() {
   showBrowser();
 
   // Load monster list
-  loadMonsterList();
+  await loadMonsterList();
 
   // Initialize UI events
   import("./scripts/ui.js").then(({ initUI }) => initUI());

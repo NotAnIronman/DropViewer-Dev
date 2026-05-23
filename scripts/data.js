@@ -1,16 +1,12 @@
 // scripts/data.js
-// ============================================================================
 // DATA LAYER — Wiki parse API for structure + Bucket API for drop data
-// ============================================================================
 
 import { dbg } from "./settings.js";
 
 export const WIKI       = "https://runescape.wiki/api.php";
 export const BUCKET_API = WIKI;
 
-// ============================================================================
 // CANONICAL TITLE RESOLUTION
-// ============================================================================
 
 export async function resolveCanonicalTitle(title) {
   const url  = `${WIKI}?action=query&redirects=1&titles=${encodeURIComponent(title)}&format=json&origin=*`;
@@ -21,10 +17,7 @@ export async function resolveCanonicalTitle(title) {
   return Object.values(pages)[0]?.title || title;
 }
 
-// ============================================================================
 // SORT ORDERS
-// ============================================================================
-
 export const MODE_ORDER = [
   "Normal Mode", "Hard Mode", "Story Mode", "Challenge Mode", "Default",
 ];
@@ -74,12 +67,10 @@ export const TABLE_COLORS = {
   "Universal drops":         "#78909c",
 };
 
-// ============================================================================
 // WIKI STRUCTURE SCRAPER
 // Uses action=parse to get rendered HTML, reads drop section headers and
 // table row counts to positionally map bucket rows to categories.
 // Returns: [{ mode, category, count }, ...]  in wiki display order
-// ============================================================================
 
 const structureCache = new Map();
 
@@ -218,7 +209,7 @@ export async function fetchDropStructure(pageName) {
     return null;
   }
 
-  const total = sections.reduce((s, x) => s + x.names.length, 0);
+  const total = sections.reduce((s, x) => s + x.count, 0);
   dbg(`STRUCTURE: ${sections.length} sections, ${total} total rows, explicit modes: ${hasExplicitModes}`);
 
   structureCache.set(pageName, sections);
@@ -262,10 +253,8 @@ function normaliseSectionName(raw) {
   return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
 }
 
-// ============================================================================
 // HEURISTIC FALLBACK CLASSIFIER
 // Only used when wiki parse fails — mirrors wiki conventions
-// ============================================================================
 
 const CHARM_NAMES = new Set(["Gold charm","Green charm","Crimson charm","Blue charm"]);
 const TERTIARY_NAMES = new Set([
@@ -289,9 +278,7 @@ function classifyDropFallback(itemName, drop) {
   return "Main drop";
 }
 
-// ============================================================================
 // BUCKET API — NPC DROPS  (raw, unclassified)
-// ============================================================================
 
 async function fetchBucketRows(pageName) {
   const query = `bucket('dropsline').select('page_name','item_name','drop_json').where('page_name','${pageName}').run()`;
@@ -301,9 +288,7 @@ async function fetchBucketRows(pageName) {
   return data?.bucket || [];
 }
 
-// ============================================================================
 // MAIN FETCH — combines wiki structure + bucket data
-// ============================================================================
 
 export async function fetchNpcDropsBucket(pageName) {
   dbg(`BUCKET: NPC fetch for "${pageName}"`);
@@ -382,9 +367,7 @@ export async function fetchNpcDropsBucket(pageName) {
   return drops;
 }
 
-// ============================================================================
 // ITEM SOURCES
-// ============================================================================
 
 export async function fetchItemSourcesBucket(itemName) {
   dbg(`BUCKET: item fetch for "${itemName}"`);
@@ -416,9 +399,7 @@ export async function fetchItemSourcesBucket(itemName) {
   });
 }
 
-// ============================================================================
 // DROP FIELD HELPERS
-// ============================================================================
 
 export function extractQtyFromDrop(drop) {
   if (!drop) return "";
@@ -437,9 +418,7 @@ export function extractRarityFromDrop(drop) {
   return "";
 }
 
-// ============================================================================
 // GROUPING + SORTING
-// ============================================================================
 
 export function groupDrops(dropRows = []) {
   const grouped = {};
@@ -469,9 +448,7 @@ export function sortCategories(cats = []) {
   });
 }
 
-// ============================================================================
 // ICON FETCHING + CACHE
-// ============================================================================
 
 const itemIconCache = new Map();
 
@@ -491,13 +468,10 @@ export async function fetchItemIcon(name) {
   }
 }
 
-// ============================================================================
 // MONSTER LIST
-// ============================================================================
 
 export let allMonsters = [];
 
-// ── Popular NPC fallback list ──────────────────────────────
 export const POPULAR_NPCS = [
 //-Bosses-
   { name:"Abomination",icon:"⚔️",cat:"Boss" },

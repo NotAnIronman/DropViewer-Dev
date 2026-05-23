@@ -499,7 +499,7 @@ export let allMonsters = [];
 
 // ── Popular NPC fallback list ──────────────────────────────
 // ── Popular NPC fallback list ──────────────────────────────
-const POPULAR_NPCS = [
+export const POPULAR_NPCS = [
 //-Bosses-
   { name:"Abomination",icon:"⚔️",cat:"Boss" },
   { name:"Amascut, the Devourer",icon:"🐱",cat:"Boss" },

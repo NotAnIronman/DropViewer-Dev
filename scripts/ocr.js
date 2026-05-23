@@ -264,7 +264,8 @@ function flashBadge(color) {
   if (!_alt1Badge) return;
   _alt1Badge.style.background = color || "#4caf50";
   setTimeout(() => {
-    _alt1Badge.style.background = "#e94560";
+    // Return to green (connected) instead of red
+    _alt1Badge.style.background = "#4caf50";
   }, 1500);
 }
 
@@ -734,16 +735,13 @@ export function initAlt1Integration() {
   const closeBtn = document.getElementById("close");
   if (closeBtn) closeBtn.style.display = "none";
 
-  const badge = document.createElement("div");
-  badge.id = "alt1badge";
-  badge.style.cssText =
-    "position:fixed;top:4px;right:30px;background:#e94560;color:#fff;" +
-    "font-size:9px;padding:1px 5px;border-radius:2px;font-weight:700;" +
-    "z-index:100;cursor:pointer;";
-  badge.textContent = "ALT1";
-  badge.title = "Click to manually read screen";
-  document.body.appendChild(badge);
-  _alt1Badge = badge;
+  // Mark the alt1 dot in the titlebar as connected
+  const dot = document.getElementById("alt1-dot");
+  if (dot) {
+    dot.classList.add("connected");
+    dot.title = "Alt1 connected v" + window.alt1.version;
+  }
+  _alt1Badge = dot; // flashBadge still works on the dot
 
   dbg("DropViewer ocr.js v1.5 — max-channel threshold catches green+yellow text");
   dbg("alt1 v" + window.alt1.version);
@@ -761,8 +759,13 @@ export function initAlt1Integration() {
     // Load OCR bundle AFTER alt1base so A1lib classes (Rect etc) exist first
     const ocrScript = document.createElement("script");
     ocrScript.src = "./menuTracking/alt1ocr.bundle.js";
-    ocrScript.onload = () => dbg("alt1ocr bundle loaded — window.OCR: " + (typeof window.OCR));
+    ocrScript.onload = () => {
+      dbg("alt1ocr bundle loaded — window.OCR: " + (typeof window.OCR));
+      // Only start tryA1lib AFTER OCR is loaded so we never get "not ready"
+      tryA1lib();
+    };
     document.head.appendChild(ocrScript);
+
     let attempts = 0;
     function tryA1lib() {
       const a1lib = window.A1lib;
@@ -781,7 +784,7 @@ export function initAlt1Integration() {
         dbg(
           ocr
             ? "✅ window.OCR loaded"
-            : "⏳ window.OCR not ready yet — will retry on first Alt+1"
+            : "⚠️ window.OCR unavailable"
         );
       } else if (attempts < 30) {
         attempts++;
@@ -790,7 +793,7 @@ export function initAlt1Integration() {
         dbg("A1lib unavailable");
       }
     }
-    tryA1lib();
+    // Note: tryA1lib is now called from ocrScript.onload above
   };
 
   a1script.onerror = function () {

@@ -1,6 +1,6 @@
 // scripts/ui.js
 // UI LAYER — Rendering, DOM Events, View Switching
-import { dbg, setStatus } from "./settings.js";
+import { dbg, setStatus, settings } from "./settings.js";
 import {
   TABLE_ICONS,
   TABLE_COLORS,
@@ -68,7 +68,7 @@ export function renderNpcList(filter) {
     const el = document.createElement("div");
     el.className = "npc-item";
     el.innerHTML = `
-      <span class="npc-icon">${npc.icon || "👾"}</span>
+      <span class="npc-icon">${settings.emojis ? (npc.icon || "👾") : ""}</span>
       <span class="npc-name">${npc.name}</span>
       ${npc.cat ? `<span class="npc-cat">${npc.cat}</span>` : ""}
     `;
@@ -148,7 +148,7 @@ export function makeSectionBlock(sec, onRowClick) {
   wrapper.className = "section-wrapper";
 
   const startCollapsed = sec.rows.length > 25;
-  const icon = TABLE_ICONS[sec.name] || "📦";
+  const icon = settings.emojis ? (TABLE_ICONS[sec.name] || "📦") : "";
   const accentColor = TABLE_COLORS[sec.name] || "var(--bg3)";
 
   const hdr = document.createElement("div");

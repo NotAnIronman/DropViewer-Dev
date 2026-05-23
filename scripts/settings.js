@@ -1,7 +1,7 @@
 // scripts/settings.js
 
 // Debug + settings state
-export const settings = { debugLog: false, ocrCanvas: false, opacity: 100 };
+export const settings = { debugLog: false, ocrCanvas: false, opacity: 100, emojis: true, hiRes: false };
 
 export function saveSetting(k, v) {
   settings[k] = v;
@@ -16,6 +16,8 @@ export function saveSetting(k, v) {
     const s = JSON.parse(localStorage.getItem("dvSettings") || "{}");
     if (s.debugLog !== undefined) settings.debugLog = s.debugLog;
     if (s.ocrCanvas !== undefined) settings.ocrCanvas = s.ocrCanvas;
+    if (s.emojis !== undefined) settings.emojis = s.emojis;
+    if (s.hiRes !== undefined) settings.hiRes = s.hiRes;
     if (typeof s.opacity === "number")
       settings.opacity = Math.max(30, Math.min(100, s.opacity));
   } catch (e) {}
@@ -65,6 +67,12 @@ export function applyToggleUI() {
 
   if (debugBtn) debugBtn.classList.toggle("on", settings.debugLog);
   if (ocrBtn) ocrBtn.classList.toggle("on", settings.ocrCanvas);
+
+  const emojiBtn = document.getElementById("toggle-emojis");
+  if (emojiBtn) emojiBtn.classList.toggle("on", settings.emojis);
+
+  const hiResBtn = document.getElementById("toggle-hires");
+  if (hiResBtn) hiResBtn.classList.toggle("on", settings.hiRes);
 
   if (opacitySlider) opacitySlider.value = settings.opacity;
   if (opacityValue) opacityValue.textContent = settings.opacity + "%";
@@ -142,6 +150,22 @@ export function initSettingsUI() {
   if (toggleOcrCanvas) {
     toggleOcrCanvas.addEventListener("click", function () {
       saveSetting("ocrCanvas", !settings.ocrCanvas);
+      applyToggleUI();
+    });
+  }
+
+  const toggleEmojis = document.getElementById("toggle-emojis");
+  if (toggleEmojis) {
+    toggleEmojis.addEventListener("click", function () {
+      saveSetting("emojis", !settings.emojis);
+      applyToggleUI();
+    });
+  }
+
+  const toggleHiRes = document.getElementById("toggle-hires");
+  if (toggleHiRes) {
+    toggleHiRes.addEventListener("click", function () {
+      saveSetting("hiRes", !settings.hiRes);
       applyToggleUI();
     });
   }

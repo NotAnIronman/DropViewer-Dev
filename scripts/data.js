@@ -1,7 +1,7 @@
 // scripts/data.js
 // DATA LAYER — Wiki parse API for structure + Bucket API for drop data
 
-import { dbg } from "./settings.js";
+import { dbg, settings } from "./settings.js";
 
 export const WIKI       = "https://runescape.wiki/api.php";
 export const BUCKET_API = WIKI;
@@ -454,16 +454,19 @@ const itemIconCache = new Map();
 
 export async function fetchItemIcon(name) {
   if (!name) return "";
-  if (itemIconCache.has(name)) return itemIconCache.get(name);
+  // Use hi-res (128px) or lo-res (40px) based on setting
+  const size = settings.hiRes ? 128 : 40;
+  const cacheKey = `${name}@${size}`;
+  if (itemIconCache.has(cacheKey)) return itemIconCache.get(cacheKey);
   try {
-    const url  = `${WIKI}?action=query&prop=pageimages&titles=${encodeURIComponent(name)}&pithumbsize=40&piprop=thumbnail&format=json&origin=*`;
+    const url  = `${WIKI}?action=query&prop=pageimages&titles=${encodeURIComponent(name)}&pithumbsize=${size}&piprop=thumbnail&format=json&origin=*`;
     const res  = await fetch(url);
     const data = await res.json();
     const src  = Object.values(data?.query?.pages || {})[0]?.thumbnail?.source || "";
-    itemIconCache.set(name, src);
+    itemIconCache.set(cacheKey, src);
     return src;
   } catch {
-    itemIconCache.set(name, "");
+    itemIconCache.set(cacheKey, "");
     return "";
   }
 }

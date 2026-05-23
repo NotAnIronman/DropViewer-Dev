@@ -706,6 +706,8 @@ export const POPULAR_NPCS = [
   { name:"The Zamorakian Undercity",icon:"⚔️",cat:"Dungeon" },
 ];
 
+loadMonsterList();
+
 export async function loadMonsterList() {
   const label  = document.getElementById("list-label");
   const count  = document.getElementById("list-count");

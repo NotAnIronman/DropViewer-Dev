@@ -1,7 +1,5 @@
 // scripts/ocr.js
-// ============================================================================
 // Alt1 + OCR integration: anchors, capture, font loading, name resolution
-// ============================================================================
 
 import {
   dbg,
@@ -19,10 +17,7 @@ import {
   currentMode,
 } from "../core.js";
 
-// ============================================================================
 // OCR core helpers
-// ============================================================================
-
 let _ocr = null;
 let _font = null;
 let _fontLoading = false;
@@ -57,7 +52,7 @@ async function loadFont() {
     const fontDef = await buildFontFromFiles(ocr, meta, pngUrl);
     if (fontDef) {
       _font = fontDef;
-      dbg("✅ Font loaded: rightclick (custom)");
+      dbg("Font loaded: rightclick (custom)");
       return _font;
     }
   } catch (e) {
@@ -74,12 +69,12 @@ async function loadFont() {
   for (const fb of builtins) {
     if (typeof window[fb.global] !== "undefined") {
       _font = window[fb.global];
-      dbg("✅ Font loaded: " + fb.label + " (built-in)");
+      dbg("Font loaded: " + fb.label + " (built-in)");
       return _font;
     }
   }
 
-  dbg("⚠️ No font available for OCR");
+  dbg("No font available for OCR");
   _fontLoading = false;
   return null;
 }
@@ -183,10 +178,7 @@ async function buildFontFromFiles(ocr, meta, pngUrl) {
   return fontDef;
 }
 
-// ============================================================================
 // Name cleanup helpers
-// ============================================================================
-
 export function stripLevelSuffix(raw) {
   if (!raw) return { text: raw, hadLevel: false };
   raw = raw.trim();
@@ -264,10 +256,7 @@ export function resolveOcrName(raw) {
   return stripped;
 }
 
-// ============================================================================
 // Alt1 integration + anchors + OCR capture
-// ============================================================================
-
 let _alt1Badge = null;
 let alt1InitDone = false;
 
@@ -600,7 +589,7 @@ async function readExamineWindow() {
         dbg(`OCR [${candidate.label}] raw: "${text}"`);
         if (text.length >= 2) {
           tesseractRaw = text;
-          dbg(`✅ Font [${candidate.label}] produced text`);
+          dbg(`Font [${candidate.label}] produced text`);
           break;
         }
       } catch (e) {
@@ -737,10 +726,7 @@ function processOpenInfo(info) {
   return true;
 }
 
-// ============================================================================
 // Public init: Alt1 + OCR bootstrap
-// ============================================================================
-
 export function initAlt1Integration() {
   if (alt1InitDone || typeof window.alt1 === "undefined") return;
   alt1InitDone = true;

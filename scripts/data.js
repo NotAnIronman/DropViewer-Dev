@@ -498,7 +498,6 @@ export async function fetchItemIcon(name) {
 export let allMonsters = [];
 
 // ── Popular NPC fallback list ──────────────────────────────
-// ── Popular NPC fallback list ──────────────────────────────
 export const POPULAR_NPCS = [
 //-Bosses-
   { name:"Abomination",icon:"⚔️",cat:"Boss" },

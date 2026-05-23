@@ -1,8 +1,5 @@
 // scripts/ui.js
-// ============================================================================
 // UI LAYER — Rendering, DOM Events, View Switching
-// ============================================================================
-
 import { dbg, setStatus } from "./settings.js";
 import {
   TABLE_ICONS,
@@ -21,10 +18,7 @@ import {
   setInDropsView
 } from "../core.js";
 
-// ============================================================================
 // VIEW SWITCHING
-// ============================================================================
-
 export function showBrowser() {
   document.getElementById("npc-browser").style.display = "flex";
   document.getElementById("disambig").style.display = "none";
@@ -53,10 +47,7 @@ export function showDrops() {
   setInDropsView(true);
 }
 
-// ============================================================================
 // NPC LIST RENDERING
-// ============================================================================
-
 export function renderNpcList(filter) {
   const list = document.getElementById("npc-list");
   const q = filter.toLowerCase().trim();
@@ -91,10 +82,7 @@ export function renderNpcList(filter) {
   list.appendChild(frag);
 }
 
-// ============================================================================
 // DISAMBIGUATION UI
-// ============================================================================
-
 export function showDisambigOptions(title, links, msg) {
   document.getElementById("disambig-msg").textContent =
     msg || `"${title}" refers to multiple pages. Which one?"`;
@@ -118,10 +106,7 @@ export function showDisambigOptions(title, links, msg) {
   setStatus("", "");
 }
 
-// ============================================================================
 // DROP TABLE RENDERING
-// ============================================================================
-
 export function renderAllSections(variants) {
   const container = document.getElementById("drops");
   container.innerHTML = "";
@@ -292,10 +277,7 @@ export function placeholder(name) {
   return d;
 }
 
-// ============================================================================
 // ITEM SOURCE TABLE RENDERING
-// ============================================================================
-
 export function renderDropSources(sources, itemTitle) {
   const container = document.getElementById("drops");
   container.innerHTML = "";
@@ -487,10 +469,7 @@ export function renderDropSources(sources, itemTitle) {
   }
 }
 
-// ============================================================================
 // SEARCH BAR + NAVIGATION EVENTS
-// ============================================================================
-
 export function initUIEvents() {
   const searchInput = document.getElementById("search-input");
   const searchBtn = document.getElementById("search-btn");
@@ -575,10 +554,7 @@ export function initUIEvents() {
   });
 }
 
-// ============================================================================
 // MODE TAB SWITCHING
-// ============================================================================
-
 export function initModeTabs() {
   const tabs = document.querySelectorAll(".mode-tab");
 
@@ -624,11 +600,7 @@ export function initModeTabs() {
     });
   });
 }
-
-// ============================================================================
 // UI INITIALIZATION ENTRY POINT
-// ============================================================================
-
 export function initUI() {
   initModeTabs();
   initUIEvents();

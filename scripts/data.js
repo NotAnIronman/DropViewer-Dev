@@ -263,6 +263,33 @@ function normaliseSectionName(raw) {
 }
 
 // ============================================================================
+// HEURISTIC FALLBACK CLASSIFIER
+// Only used when wiki parse fails — mirrors wiki conventions
+// ============================================================================
+
+const CHARM_NAMES = new Set(["Gold charm","Green charm","Crimson charm","Blue charm"]);
+const TERTIARY_NAMES = new Set([
+  "Starved ancient effigy","Mimic kill token",
+  "Spirit sapphire","Spirit emerald","Spirit ruby",
+  "Spirit diamond","Spirit dragonstone","Spirit onyx","Spirit hydrix",
+  "Curved bone","Long bone",
+  "Clue scroll (easy)","Clue scroll (medium)","Clue scroll (hard)",
+  "Clue scroll (elite)","Clue scroll (master)",
+]);
+
+function classifyDropFallback(itemName, drop) {
+  const rarity = (drop?.["Rarity"] || "").trim();
+  if (/^always$/i.test(rarity))     return "100%";
+  if (CHARM_NAMES.has(itemName))    return "Charms";
+  if (TERTIARY_NAMES.has(itemName)) return "Tertiary";
+  if (/champion'?s? scroll/i.test(itemName)) return "Tertiary";
+  const notes = drop?.["Rarity Notes"] || [];
+  if (notes.some(n => /rag.and.bone|wish.?list/i.test(n?.content || ""))) return "Tertiary";
+  if (/stone.?spirit/i.test(itemName)) return "Stone spirits";
+  return "Main drop";
+}
+
+// ============================================================================
 // BUCKET API — NPC DROPS  (raw, unclassified)
 // ============================================================================
 
@@ -353,33 +380,6 @@ export async function fetchNpcDropsBucket(pageName) {
   }
 
   return drops;
-}
-
-// ============================================================================
-// HEURISTIC FALLBACK CLASSIFIER
-// Only used when wiki parse fails — mirrors wiki conventions
-// ============================================================================
-
-const CHARM_NAMES = new Set(["Gold charm","Green charm","Crimson charm","Blue charm"]);
-const TERTIARY_NAMES = new Set([
-  "Starved ancient effigy","Mimic kill token",
-  "Spirit sapphire","Spirit emerald","Spirit ruby",
-  "Spirit diamond","Spirit dragonstone","Spirit onyx","Spirit hydrix",
-  "Curved bone","Long bone",
-  "Clue scroll (easy)","Clue scroll (medium)","Clue scroll (hard)",
-  "Clue scroll (elite)","Clue scroll (master)",
-]);
-
-function classifyDropFallback(itemName, drop) {
-  const rarity = (drop?.["Rarity"] || "").trim();
-  if (/^always$/i.test(rarity))     return "100%";
-  if (CHARM_NAMES.has(itemName))    return "Charms";
-  if (TERTIARY_NAMES.has(itemName)) return "Tertiary";
-  if (/champion'?s? scroll/i.test(itemName)) return "Tertiary";
-  const notes = drop?.["Rarity Notes"] || [];
-  if (notes.some(n => /rag.and.bone|wish.?list/i.test(n?.content || ""))) return "Tertiary";
-  if (/stone.?spirit/i.test(itemName)) return "Stone spirits";
-  return "Main drop";
 }
 
 // ============================================================================

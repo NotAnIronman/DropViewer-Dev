@@ -25,6 +25,7 @@ import {
   renderNpcList,
   renderAllSections,
   renderDropSources
+  initUI
 } from "./scripts/ui.js";
 import {
   initAlt1Integration,
@@ -469,8 +470,10 @@ export async function initApp() {
   // Load monster list
   await loadMonsterList();
 
+  // RENDER INITIAL LIST
+  renderNpcList(allMonsters);
+
   // Initialize UI events
-  const { initUI } = await import("./scripts/ui.js");
   initUI();
 
   // Initialize Alt1 integration

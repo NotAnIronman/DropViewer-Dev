@@ -56,7 +56,9 @@ body {
 .mode-tab { flex:1;padding:6px 0;text-align:center;font-size:11px;font-weight:600;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;user-select:none;letter-spacing:.03em; }
 .mode-tab:hover { color: var(--text); }
 .mode-tab.active { color:var(--gold);border-bottom-color:var(--gold); }
-#searchbar { background:var(--bg2);border-bottom:1px solid var(--border);padding:7px 10px;display:flex;gap:5px;flex-shrink:0; }
+#searchbar { background:var(--bg2);border-bottom:1px solid var(--border);padding:7px 10px;display:flex;gap:5px;flex-shrink:0;align-items:center; }
+#back-btn { display:none;background:var(--bg3);border:1px solid var(--border);color:var(--dim);padding:4px 8px;font-size:11px;cursor:pointer;border-radius:4px;white-space:nowrap;flex-shrink:0; }
+#back-btn:hover { color: var(--text); border-color: var(--accent); }
 #search-input { flex:1;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 8px;font-size:12px;outline:none;cursor:text;user-select:text;-webkit-user-select:text; }
 #search-input:focus { border-color: var(--accent); }
 #search-btn { background:var(--accent);border:none;border-radius:4px;color:#fff;padding:5px 12px;cursor:pointer;font-size:12px;font-weight:600; }
@@ -65,8 +67,8 @@ body {
 #status.ok { color: var(--green); }
 #status.err { color: var(--accent); }
 #status.busy { color: var(--gold); }
-#back-btn { display:none;background:var(--bg3);border:none;color:var(--dim);padding:4px 10px;font-size:11px;cursor:pointer;border-bottom:1px solid var(--border);width:100%;text-align:left;flex-shrink:0; }
-#back-btn:hover { color: var(--text); }
+#alt1-dot { width:7px;height:7px;border-radius:50%;background:var(--dim);flex-shrink:0;transition:background .3s; }
+#alt1-dot.connected { background: var(--green); }
 #content { flex:1;overflow-y:auto;position:relative; }
 #content::-webkit-scrollbar { width: 4px; }
 #content::-webkit-scrollbar-thumb { background:var(--bg3);border-radius:2px; }

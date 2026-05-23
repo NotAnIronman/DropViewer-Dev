@@ -20,6 +20,7 @@
     </div>
 
     <button id="settings-btn" title="Settings">⚙</button>
+    <div id="alt1-dot" title="Alt1 not detected"></div>
     <button id="close">✕</button>
   </div>
 
@@ -36,6 +37,16 @@
       <div class="toggle" id="toggle-ocr-canvas"></div>
     </div>
 
+    <div class="settings-row">
+      <label>Show emoji icons</label>
+      <div class="toggle" id="toggle-emojis"></div>
+    </div>
+
+    <div class="settings-row">
+      <label>High-res item icons</label>
+      <div class="toggle" id="toggle-hires"></div>
+    </div>
+
     <div class="settings-row settings-row--stack">
       <label>Window opacity <span id="opacity-value">100%</span></label>
       <input type="range" id="opacity-slider" min="30" max="100" step="5" value="100" />
@@ -48,12 +59,12 @@
   </div>
 
   <div id="searchbar">
+    <button id="back-btn">← Back</button>
     <input id="search-input" type="text" placeholder="Search NPCs..." autocomplete="off" />
     <button id="search-btn">Search</button>
   </div>
 
   <div id="status"></div>
-  <button id="back-btn">← Back</button>
 
   <div id="content">
 

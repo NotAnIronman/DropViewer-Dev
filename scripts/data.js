@@ -528,7 +528,7 @@ const POPULAR_NPCS = [
   { name:'King Black Dragon',icon:'🐉',cat:'Boss' },
   { name:'Kerapac, the Bound',icon:'🐉',cat:'Boss' },
   { name:"K\'ril Tsutsaroth",icon:'😈',cat:'Boss' },
-  { name:"Kree'arra",icon:'🦅',cat:'Boss' },
+  { name:"Kree\'arra",icon:'🦅',cat:'Boss' },
   { name:'Legio Primus',icon:'⚔️',cat:'Boss' },
   { name:'Magister',icon:'👻',cat:'Boss' },
   { name:'Nakatra',icon:'⚔️',cat:'Boss' },

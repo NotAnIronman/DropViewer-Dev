@@ -459,7 +459,7 @@ export async function lookupItemSources(name) {
 // APPLICATION INITIALIZATION
 // ============================================================================
 
-export function initApp() {
+export async function initApp() {
   dbg("Initializing DropViewer...");
 
   applyToggleUI();
@@ -467,10 +467,11 @@ export function initApp() {
   showBrowser();
 
   // Load monster list
-  loadMonsterList();
+  await loadMonsterList();
 
   // Initialize UI events
-  import("./scripts/ui.js").then(({ initUI }) => initUI());
+  const { initUI } = await import("./scripts/ui.js");
+  initUI();
 
   // Initialize Alt1 integration
   autoPollAlt1();

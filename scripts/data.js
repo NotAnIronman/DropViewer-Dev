@@ -218,7 +218,7 @@ export async function fetchDropStructure(pageName) {
     return null;
   }
 
-  const total = sections.reduce((s, x) => s + x.count, 0);
+  const total = sections.reduce((s, x) => s + x.names.length, 0);
   dbg(`STRUCTURE: ${sections.length} sections, ${total} total rows, explicit modes: ${hasExplicitModes}`);
 
   structureCache.set(pageName, sections);

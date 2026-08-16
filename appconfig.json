@@ -2,6 +2,7 @@
   "appName": "Drop Viewer - Developer",
   "description": "Lets you quickly pull up the drop table of NPCs",
   "appUrl": "./drops.html",
+  "configUrl": "./appconfig.json",
   "iconUrl": "./Drops.png",
   "defaultWidth": 480,
   "defaultHeight": 620,
